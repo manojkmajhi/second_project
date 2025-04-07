@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "941589217621",
+    "project_id": "toolkitnepal-76278",
+    "storage_bucket": "toolkitnepal-76278.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:941589217621:android:75298606f9d0f95d41afdc",
+        "android_client_info": {
+          "package_name": "com.example.second_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCx5OUnXEsXTsQ2FA-Prv4W8JkdCTKPkcU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

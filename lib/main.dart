@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:second_project/pages/bottomnav.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:second_project/firebase_options.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'package:second_project/pages/signup.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -17,7 +22,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: BottomNav(),
+      home: Signup(),
     );
   }
 }
