@@ -37,6 +37,16 @@ dependencies:
   curved_navigation_bar: ^1.0.6
   firebase_core: ^3.13.0
   firebase_auth: ^5.5.2
+  cloud_firestore: ^5.6.6
+  random_string: ^2.3.1
+  shared_preferences: ^2.5.3
+  image_picker: ^1.1.2
+  firebase_storage: ^12.4.5
+  sqflite: ^2.4.2
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  flutter_native_splash: ^2.4.6
+  icons_launcher: ^3.0.1
  
 
 dev_dependencies:

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:second_project/admin/add_product.dart';
 import 'package:second_project/firebase_options.dart';
+import 'package:second_project/pages/bottomnav.dart';
 
-import 'package:second_project/pages/signup.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +23,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: Signup(),
+      home: AddProduct(),
     );
   }
 }

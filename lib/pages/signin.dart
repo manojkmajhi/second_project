@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:second_project/pages/bottomnav.dart';
 import 'package:second_project/pages/signup.dart';
 import 'package:second_project/widget/support_widget.dart';
 
@@ -10,10 +12,41 @@ class SignIn extends StatefulWidget {
 }
 
 class _SignInState extends State<SignIn> {
+  String? email = "", password = "";
+
   final _formKey = GlobalKey<FormState>();
 
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+
+  userLogin() async {
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email!,
+        password: password!,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green,
+          content: Text('Logged In Successfully'),
+        ),
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => BottomNav()),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No user found for that email.')),
+        );
+      } else if (e.code == 'wrong-password') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Wrong password provided for that user.')),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -24,7 +57,6 @@ class _SignInState extends State<SignIn> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-     
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Logging in...')));
@@ -125,7 +157,7 @@ class _SignInState extends State<SignIn> {
                         color: Colors.black,
                         fontSize: 15.0,
                         fontWeight: FontWeight.bold,
-                      ),
+                      ),  
                     ),
                   ],
                 ),
@@ -133,7 +165,14 @@ class _SignInState extends State<SignIn> {
                 SizedBox(height: 20),
 
                 GestureDetector(
-                  onTap: _submitForm,
+                  onTap: () {
+                    setState(() {
+                      email = emailController.text;
+                      password = passwordController.text;
+                      userLogin();
+                    });
+                    userLogin();
+                  },
                   child: Container(
                     width: MediaQuery.of(context).size.width,
                     padding: EdgeInsets.symmetric(vertical: 15),

@@ -1,4 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:random_string/random_string.dart';
+import 'package:second_project/database/database.dart';
+import 'package:second_project/database/shared_preferences.dart';
+import 'package:second_project/pages/bottomnav.dart';
 import 'package:second_project/pages/signin.dart';
 import 'package:second_project/widget/support_widget.dart';
 
@@ -10,18 +15,69 @@ class Signup extends StatefulWidget {
 }
 
 class _SignupState extends State<Signup> {
-  final _formKey = GlobalKey<FormState>();
+  String? name, email, password, confirmPassword;
 
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  Future<void> registration() async {
+    try {
+      UserCredential userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email!, password: password!);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green,
+          content: Text('User Registered Successfully'),
+        ),
+      );
+      String id = randomAlphaNumeric(10);
+
+      await SharedPreferenceHelper().saveUserId(id);
+      await SharedPreferenceHelper().saveUserName(nameController.text);
+      await SharedPreferenceHelper().saveUserEmail(emailController.text);
+      await SharedPreferenceHelper().saveUserImage("assets/logo/user.png");
+
+      Map<String, dynamic> userInfoMap = {
+        "Name": nameController.text,
+        "Email": emailController.text,
+        "ID": id,
+        "ProfileImage": "assets/logo/user.png",
+      };
+      await DatabaseMethods().addUserDetails(userInfoMap, id);
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => BottomNav()),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'weak-password') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('The password provided is too weak')),
+        );
+      } else if (e.code == 'email-already-in-use') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('The account already exists for that email')),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.message}')));
+      }
+    }
+  }
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Form submitted successfully!')),
-      );
+      setState(() {
+        name = nameController.text;
+        email = emailController.text;
+        password = passwordController.text;
+        confirmPassword = confirmPasswordController.text;
+      });
+      registration();
     }
   }
 
@@ -58,8 +114,9 @@ class _SignupState extends State<Signup> {
                   decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
                   child: TextFormField(
                     controller: nameController,
-                    validator: (value) =>
-                        value!.isEmpty ? "Name cannot be empty" : null,
+                    validator:
+                        (value) =>
+                            value!.isEmpty ? "Name cannot be empty" : null,
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your Full Name",
@@ -80,8 +137,9 @@ class _SignupState extends State<Signup> {
                       if (value == null || value.isEmpty) {
                         return 'Email cannot be empty';
                       }
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}')
-                          .hasMatch(value)) {
+                      if (!RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}',
+                      ).hasMatch(value)) {
                         return 'Enter a valid email';
                       }
                       return null;
@@ -102,9 +160,11 @@ class _SignupState extends State<Signup> {
                   child: TextFormField(
                     controller: passwordController,
                     obscureText: true,
-                    validator: (value) => value != null && value.length < 6
-                        ? "Password must be at least 6 characters"
-                        : null,
+                    validator:
+                        (value) =>
+                            value != null && value.length < 6
+                                ? "Password must be at least 6 characters"
+                                : null,
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your password",
@@ -133,9 +193,7 @@ class _SignupState extends State<Signup> {
                     ),
                   ),
                 ),
-
                 SizedBox(height: 50.0),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -151,10 +209,18 @@ class _SignupState extends State<Signup> {
                 ),
 
                 SizedBox(height: 20),
-
                 // Submit Button
                 GestureDetector(
-                  onTap: _submitForm,
+                  onTap: () {
+                    if (_formKey.currentState!.validate()) {
+                      setState(() {
+                        name = nameController.text;
+                        email = emailController.text;
+                        password = passwordController.text;
+                      });
+                    }
+                    registration();
+                  },
                   child: Container(
                     width: MediaQuery.of(context).size.width,
                     padding: EdgeInsets.symmetric(vertical: 15),
@@ -196,7 +262,7 @@ class _SignupState extends State<Signup> {
                         );
                       },
                       child: Text(
-                        "Login",
+                        "Signup",
                         style: TextStyle(
                           color: Colors.red,
                           fontSize: 20.0,

@@ -15,6 +15,12 @@ class _ProfileState extends State<Profile> {
       backgroundColor: Color.fromARGB(255, 235, 235, 235),
       appBar: AppBar(
         backgroundColor: Color.fromARGB(255, 235, 235, 235),
+        leading: GestureDetector(
+          onTap: () {
+            Navigator.pop(context);
+          },
+          child: Icon(Icons.arrow_back_ios, color: Colors.black),
+        ),
         title: Center(
           child: Text(
             'Profile',
