@@ -23,16 +23,21 @@ class _SignupState extends State<Signup> {
   final confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+
   Future<void> registration() async {
     try {
       UserCredential userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email!, password: password!);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Colors.green,
           content: Text('User Registered Successfully'),
         ),
       );
+
       String id = randomAlphaNumeric(10);
 
       await SharedPreferenceHelper().saveUserId(id);
@@ -46,11 +51,12 @@ class _SignupState extends State<Signup> {
         "ID": id,
         "ProfileImage": "assets/logo/user.png",
       };
+
       await DatabaseMethods().addUserDetails(userInfoMap, id);
 
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => BottomNav()),
+        MaterialPageRoute(builder: (context) => SignIn()),
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'weak-password') {
@@ -159,7 +165,7 @@ class _SignupState extends State<Signup> {
                   decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
                   child: TextFormField(
                     controller: passwordController,
-                    obscureText: true,
+                    obscureText: _obscurePassword,
                     validator:
                         (value) =>
                             value != null && value.length < 6
@@ -168,6 +174,18 @@ class _SignupState extends State<Signup> {
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your password",
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -180,7 +198,7 @@ class _SignupState extends State<Signup> {
                   decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
                   child: TextFormField(
                     controller: confirmPasswordController,
-                    obscureText: true,
+                    obscureText: _obscureConfirmPassword,
                     validator: (value) {
                       if (value != passwordController.text) {
                         return "Passwords do not match";
@@ -190,10 +208,24 @@ class _SignupState extends State<Signup> {
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: "Confirm your password",
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
                     ),
                   ),
                 ),
+
                 SizedBox(height: 50.0),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -209,18 +241,10 @@ class _SignupState extends State<Signup> {
                 ),
 
                 SizedBox(height: 20),
-                // Submit Button
+
+                // Sign Up Button
                 GestureDetector(
-                  onTap: () {
-                    if (_formKey.currentState!.validate()) {
-                      setState(() {
-                        name = nameController.text;
-                        email = emailController.text;
-                        password = passwordController.text;
-                      });
-                    }
-                    registration();
-                  },
+                  onTap: _submitForm,
                   child: Container(
                     width: MediaQuery.of(context).size.width,
                     padding: EdgeInsets.symmetric(vertical: 15),
@@ -262,7 +286,7 @@ class _SignupState extends State<Signup> {
                         );
                       },
                       child: Text(
-                        "Signup",
+                        "Login",
                         style: TextStyle(
                           color: Colors.red,
                           fontSize: 20.0,

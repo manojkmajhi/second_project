@@ -15,38 +15,10 @@ class _SignInState extends State<SignIn> {
   String? email = "", password = "";
 
   final _formKey = GlobalKey<FormState>();
-
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  userLogin() async {
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email!,
-        password: password!,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.green,
-          content: Text('Logged In Successfully'),
-        ),
-      );
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => BottomNav()),
-      );
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No user found for that email.')),
-        );
-      } else if (e.code == 'wrong-password') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Wrong password provided for that user.')),
-        );
-      }
-    }
-  }
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -55,11 +27,49 @@ class _SignInState extends State<SignIn> {
     super.dispose();
   }
 
-  void _submitForm() {
+  // Function to handle login
+  Future<void> userLogin() async {
     if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Logging in...')));
+      try {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email!,
+          password: password!,
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.green,
+            content: Text('Logged In Successfully'),
+          ),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => BottomNav()),
+        );
+      } on FirebaseAuthException catch (e) {
+        String message = '';
+        switch (e.code) {
+          case 'user-not-found':
+            message = 'No user found with that email address.';
+            break;
+          case 'wrong-password':
+            message = 'Incorrect password. Please try again.';
+            break;
+          case 'invalid-email':
+            message = 'The email address is badly formatted.';
+            break;
+          case 'user-disabled':
+            message = 'This user has been disabled.';       
+            break;
+          default:
+            message = 'Email or password is incorrect.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: Colors.red, content: Text(message)),
+        );
+      }
     }
   }
 
@@ -112,7 +122,7 @@ class _SignInState extends State<SignIn> {
                         return 'Email cannot be empty';
                       }
                       if (!RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}',
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
                       ).hasMatch(value)) {
                         return 'Enter a valid email';
                       }
@@ -134,7 +144,7 @@ class _SignInState extends State<SignIn> {
                   decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
                   child: TextFormField(
                     controller: passwordController,
-                    obscureText: true,
+                    obscureText: _obscurePassword,
                     validator:
                         (value) =>
                             value != null && value.length < 6
@@ -143,6 +153,18 @@ class _SignInState extends State<SignIn> {
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your password",
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -157,7 +179,7 @@ class _SignInState extends State<SignIn> {
                         color: Colors.black,
                         fontSize: 15.0,
                         fontWeight: FontWeight.bold,
-                      ),  
+                      ),
                     ),
                   ],
                 ),
@@ -167,9 +189,8 @@ class _SignInState extends State<SignIn> {
                 GestureDetector(
                   onTap: () {
                     setState(() {
-                      email = emailController.text;
-                      password = passwordController.text;
-                      userLogin();
+                      email = emailController.text.trim();
+                      password = passwordController.text.trim();
                     });
                     userLogin();
                   },

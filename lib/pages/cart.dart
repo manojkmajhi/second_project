@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
 
-class Favorite extends StatefulWidget {
-  const Favorite({super.key});
+class Cart extends StatefulWidget {
+  const Cart({super.key});
 
   @override
-  State<Favorite> createState() => _FavoriteState();
+  State<Cart> createState() => _CartState();
 }
 
-class _FavoriteState extends State<Favorite> {
+class _CartState extends State<Cart> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 252, 251, 251),
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 252, 251, 251),
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: false, 
         centerTitle: true,
         title: const Text(
-          'Favorite Products',
+          'Your Cart',
           style: TextStyle(
             color: Colors.black,
             fontSize: 30,
@@ -27,7 +27,7 @@ class _FavoriteState extends State<Favorite> {
       ),
       body: const Center(
         child: Text(
-          'Your favorite is empty!',
+          'Your cart is empty!',
           style: TextStyle(fontSize: 18, color: Colors.grey),
         ),
       ),

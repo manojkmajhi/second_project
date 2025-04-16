@@ -47,6 +47,8 @@ dependencies:
   path: ^1.9.1
   flutter_native_splash: ^2.4.6
   icons_launcher: ^3.0.1
+  cloudinary_flutter: ^1.3.0
+  cloudinary_url_gen: ^1.7.0
  
 
 dev_dependencies:
