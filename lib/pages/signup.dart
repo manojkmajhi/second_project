@@ -1,11 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:random_string/random_string.dart';
-import 'package:second_project/database/database.dart';
+import 'package:second_project/database/database.dart'; // Firebase DB
 import 'package:second_project/database/shared_preferences.dart';
-import 'package:second_project/pages/bottomnav.dart';
+import 'package:second_project/data/local/db_helper.dart'; // ✅ Add your local DB
 import 'package:second_project/pages/signin.dart';
 import 'package:second_project/widget/support_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Signup extends StatefulWidget {
   const Signup({super.key});
@@ -26,20 +26,33 @@ class _SignupState extends State<Signup> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
+  bool isPasswordStrong(String password) {
+    final regex = RegExp(
+      r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#\$&*~_]).{8,}$',
+    );
+    return regex.hasMatch(password);
+  }
+
+  bool isValidName(String name) {
+    final regex = RegExp(r'^[a-zA-Z\s]+$');
+    return regex.hasMatch(name);
+  }
+
   Future<void> registration() async {
     try {
       UserCredential userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email!, password: password!);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           backgroundColor: Colors.green,
           content: Text('User Registered Successfully'),
         ),
       );
 
-      String id = randomAlphaNumeric(10);
+      String id = userCredential.user!.uid;
 
+      // Firebase & SharedPreferences
       await SharedPreferenceHelper().saveUserId(id);
       await SharedPreferenceHelper().saveUserName(nameController.text);
       await SharedPreferenceHelper().saveUserEmail(emailController.text);
@@ -51,27 +64,38 @@ class _SignupState extends State<Signup> {
         "ID": id,
         "ProfileImage": "assets/logo/user.png",
       };
-
       await DatabaseMethods().addUserDetails(userInfoMap, id);
 
-      Navigator.push(
+      // Inserted into SQLite
+      final db = await DBHelper.instance.getDB();
+      final user = {
+        'name': nameController.text.trim(),
+        'email': emailController.text.trim(),
+        'password': passwordController.text.trim(),
+      };
+      final userId = await db.insert("users", user);
+      debugPrint("🆕 User inserted and ID saved to SharedPreferences: $userId");
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt("user_id", userId);
+
+      Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => SignIn()),
+        MaterialPageRoute(builder: (context) => const SignIn()),
       );
     } on FirebaseAuthException catch (e) {
+      String message = '';
       if (e.code == 'weak-password') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('The password provided is too weak')),
-        );
+        message = 'The password provided is too weak';
       } else if (e.code == 'email-already-in-use') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('The account already exists for that email')),
-        );
+        message = 'The account already exists for that email';
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.message}')));
+        message = 'Error: ${e.message}';
       }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -90,14 +114,13 @@ class _SignupState extends State<Signup> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color.fromARGB(255, 235, 235, 235),
+      backgroundColor: const Color.fromARGB(255, 235, 235, 235),
       body: SingleChildScrollView(
         child: Container(
-          margin: EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+          margin: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
                   child: Image.asset(
@@ -112,30 +135,32 @@ class _SignupState extends State<Signup> {
                     style: AppWidget.boldTextFieldStyle(),
                   ),
                 ),
-                SizedBox(height: 30.0),
+                const SizedBox(height: 30.0),
 
                 // Full Name
-                Container(
-                  padding: EdgeInsets.only(left: 20.0),
-                  decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
+                _buildInputContainer(
                   child: TextFormField(
                     controller: nameController,
-                    validator:
-                        (value) =>
-                            value!.isEmpty ? "Name cannot be empty" : null,
-                    decoration: InputDecoration(
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return "Name cannot be empty";
+                      }
+                      if (!isValidName(value)) {
+                        return "Name can only contain letters and spaces";
+                      }
+                      return null;
+                    },
+                    decoration: const InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your Full Name",
                     ),
                   ),
                 ),
 
-                SizedBox(height: 20.0),
+                const SizedBox(height: 20.0),
 
                 // Email
-                Container(
-                  padding: EdgeInsets.only(left: 20.0),
-                  decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
+                _buildInputContainer(
                   child: TextFormField(
                     controller: emailController,
                     keyboardType: TextInputType.emailAddress,
@@ -144,33 +169,35 @@ class _SignupState extends State<Signup> {
                         return 'Email cannot be empty';
                       }
                       if (!RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}',
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
                       ).hasMatch(value)) {
                         return 'Enter a valid email';
                       }
                       return null;
                     },
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your email",
                     ),
                   ),
                 ),
 
-                SizedBox(height: 20.0),
+                const SizedBox(height: 20.0),
 
                 // Password
-                Container(
-                  padding: EdgeInsets.only(left: 20.0),
-                  decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
+                _buildInputContainer(
                   child: TextFormField(
                     controller: passwordController,
                     obscureText: _obscurePassword,
-                    validator:
-                        (value) =>
-                            value != null && value.length < 6
-                                ? "Password must be at least 6 characters"
-                                : null,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return "Password cannot be empty";
+                      }
+                      if (!isPasswordStrong(value)) {
+                        return "Password must be 8+ characters,\ninclude uppercase, lowercase, number & symbol";
+                      }
+                      return null;
+                    },
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your password",
@@ -190,12 +217,10 @@ class _SignupState extends State<Signup> {
                   ),
                 ),
 
-                SizedBox(height: 20.0),
+                const SizedBox(height: 20.0),
 
                 // Confirm Password
-                Container(
-                  padding: EdgeInsets.only(left: 20.0),
-                  decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
+                _buildInputContainer(
                   child: TextFormField(
                     controller: confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
@@ -224,11 +249,11 @@ class _SignupState extends State<Signup> {
                   ),
                 ),
 
-                SizedBox(height: 50.0),
+                const SizedBox(height: 50.0),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
+                  children: const [
                     Text(
                       "Forgot password?",
                       style: TextStyle(
@@ -240,19 +265,19 @@ class _SignupState extends State<Signup> {
                   ],
                 ),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // Sign Up Button
                 GestureDetector(
                   onTap: _submitForm,
                   child: Container(
                     width: MediaQuery.of(context).size.width,
-                    padding: EdgeInsets.symmetric(vertical: 15),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
                     decoration: BoxDecoration(
                       color: Colors.black,
                       borderRadius: BorderRadius.circular(10.0),
                     ),
-                    child: Center(
+                    child: const Center(
                       child: Text(
                         "Sign Up",
                         style: TextStyle(
@@ -265,12 +290,12 @@ class _SignupState extends State<Signup> {
                   ),
                 ),
 
-                SizedBox(height: 15.0),
+                const SizedBox(height: 15.0),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
+                    const Text(
                       "Already have an account? ",
                       style: TextStyle(
                         color: Colors.black,
@@ -279,13 +304,14 @@ class _SignupState extends State<Signup> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => SignIn()),
-                        );
-                      },
-                      child: Text(
+                      onTap:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SignIn(),
+                            ),
+                          ),
+                      child: const Text(
                         "Login",
                         style: TextStyle(
                           color: Colors.red,
@@ -301,6 +327,14 @@ class _SignupState extends State<Signup> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInputContainer({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.only(left: 20.0),
+      decoration: const BoxDecoration(color: Color(0xFFF4F5F9)),
+      child: child,
     );
   }
 }

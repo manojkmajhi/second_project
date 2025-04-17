@@ -1,8 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:second_project/admin/admin_signin.dart';
+import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/pages/bottomnav.dart';
 import 'package:second_project/pages/signup.dart';
 import 'package:second_project/widget/support_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SignIn extends StatefulWidget {
   const SignIn({super.key});
@@ -13,11 +16,9 @@ class SignIn extends StatefulWidget {
 
 class _SignInState extends State<SignIn> {
   String? email = "", password = "";
-
   final _formKey = GlobalKey<FormState>();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-
   bool _obscurePassword = true;
 
   @override
@@ -27,28 +28,55 @@ class _SignInState extends State<SignIn> {
     super.dispose();
   }
 
-  // Function to handle login
   Future<void> userLogin() async {
     if (_formKey.currentState!.validate()) {
       try {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: email!,
-          password: password!,
-        );
+        // Firebase login
+        UserCredential userCredential = await FirebaseAuth.instance
+            .signInWithEmailAndPassword(email: email!, password: password!);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.green,
-            content: Text('Logged In Successfully'),
-          ),
-        );
+        final user = userCredential.user;
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => BottomNav()),
-        );
+        if (user != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.green,
+              content: Text('Logged In Successfully'),
+            ),
+          );
+
+          // Save user to local DB if not exists
+          final db = await DBHelper.instance.getDB();
+          final prefs = await SharedPreferences.getInstance();
+
+          final result = await db.query(
+            "users",
+            where: "email = ?",
+            whereArgs: [user.email],
+          );
+
+          if (result.isEmpty) {
+            int newUserId = await db.insert("users", {
+              'name': user.displayName ?? 'No Name',
+              'email': user.email,
+              'password': password, // 🔐 Consider encrypting it in real apps
+            });
+
+            await prefs.setInt('user_id', newUserId);
+            debugPrint("🆕 User inserted and ID saved to SharedPreferences: $newUserId");
+          } else {
+            int existingUserId = result.first['id'] as int;
+            await prefs.setInt('user_id', existingUserId);
+            debugPrint("📥 Existing user ID saved to SharedPreferences: $existingUserId");
+          }
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const BottomNav()),
+          );
+        }
       } on FirebaseAuthException catch (e) {
-        String message = '';
+        String message;
         switch (e.code) {
           case 'user-not-found':
             message = 'No user found with that email address.';
@@ -60,7 +88,7 @@ class _SignInState extends State<SignIn> {
             message = 'The email address is badly formatted.';
             break;
           case 'user-disabled':
-            message = 'This user has been disabled.';       
+            message = 'This user has been disabled.';
             break;
           default:
             message = 'Email or password is incorrect.';
@@ -76,10 +104,10 @@ class _SignInState extends State<SignIn> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color.fromARGB(255, 235, 235, 235),
+      backgroundColor: const Color.fromARGB(255, 235, 235, 235),
       body: SingleChildScrollView(
         child: Container(
-          margin: EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+          margin: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
           child: Form(
             key: _formKey,
             child: Column(
@@ -98,7 +126,7 @@ class _SignInState extends State<SignIn> {
                     style: AppWidget.boldTextFieldStyle(),
                   ),
                 ),
-                SizedBox(height: 20.0),
+                const SizedBox(height: 20.0),
                 Center(
                   child: Text(
                     "Welcome! to ToolKit Nepal please enter login credentials to continue.",
@@ -106,14 +134,12 @@ class _SignInState extends State<SignIn> {
                     style: AppWidget.lightTextFieldStyle(),
                   ),
                 ),
-
-                SizedBox(height: 20.0),
+                const SizedBox(height: 20.0),
                 Text("Email", style: AppWidget.semiboldTextFieldStyle()),
-                SizedBox(height: 20.0),
-
+                const SizedBox(height: 20.0),
                 Container(
-                  padding: EdgeInsets.only(left: 20.0),
-                  decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
+                  padding: const EdgeInsets.only(left: 20.0),
+                  decoration: const BoxDecoration(color: Color(0xFFF4F5F9)),
                   child: TextFormField(
                     controller: emailController,
                     keyboardType: TextInputType.emailAddress,
@@ -121,35 +147,31 @@ class _SignInState extends State<SignIn> {
                       if (value == null || value.isEmpty) {
                         return 'Email cannot be empty';
                       }
-                      if (!RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                      ).hasMatch(value)) {
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                          .hasMatch(value)) {
                         return 'Enter a valid email';
                       }
                       return null;
                     },
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your email",
                     ),
                   ),
                 ),
-
-                SizedBox(height: 20.0),
+                const SizedBox(height: 20.0),
                 Text("Password", style: AppWidget.semiboldTextFieldStyle()),
-                SizedBox(height: 20.0),
-
+                const SizedBox(height: 20.0),
                 Container(
-                  padding: EdgeInsets.only(left: 20.0),
-                  decoration: BoxDecoration(color: Color(0xFFF4F5F9)),
+                  padding: const EdgeInsets.only(left: 20.0),
+                  decoration: const BoxDecoration(color: Color(0xFFF4F5F9)),
                   child: TextFormField(
                     controller: passwordController,
                     obscureText: _obscurePassword,
-                    validator:
-                        (value) =>
-                            value != null && value.length < 6
-                                ? "Password must be at least 6 characters"
-                                : null,
+                    validator: (value) =>
+                        value != null && value.length < 6
+                            ? "Password must be at least 6 characters"
+                            : null,
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your password",
@@ -168,11 +190,10 @@ class _SignInState extends State<SignIn> {
                     ),
                   ),
                 ),
-
-                SizedBox(height: 20.0),
+                const SizedBox(height: 20.0),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
+                  children: const [
                     Text(
                       "Forgot password?",
                       style: TextStyle(
@@ -183,9 +204,7 @@ class _SignInState extends State<SignIn> {
                     ),
                   ],
                 ),
-
-                SizedBox(height: 20),
-
+                const SizedBox(height: 20),
                 GestureDetector(
                   onTap: () {
                     setState(() {
@@ -196,12 +215,12 @@ class _SignInState extends State<SignIn> {
                   },
                   child: Container(
                     width: MediaQuery.of(context).size.width,
-                    padding: EdgeInsets.symmetric(vertical: 15),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
                     decoration: BoxDecoration(
                       color: Colors.black,
                       borderRadius: BorderRadius.circular(10.0),
                     ),
-                    child: Center(
+                    child: const Center(
                       child: Text(
                         "Login",
                         style: TextStyle(
@@ -213,12 +232,11 @@ class _SignInState extends State<SignIn> {
                     ),
                   ),
                 ),
-
-                SizedBox(height: 15.0),
+                const SizedBox(height: 15.0),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
+                    const Text(
                       "Don't have an account? ",
                       style: TextStyle(
                         color: Colors.black,
@@ -233,8 +251,40 @@ class _SignInState extends State<SignIn> {
                           MaterialPageRoute(builder: (context) => Signup()),
                         );
                       },
-                      child: Text(
+                      child: const Text(
                         "Signup",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 20.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10.0),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "Login as Admin? ",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 20.0,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 5.0),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => AdminSignin()),
+                        );
+                      },
+                      child: const Text(
+                        "Admin",
                         style: TextStyle(
                           color: Colors.red,
                           fontSize: 20.0,

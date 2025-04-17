@@ -1,6 +1,8 @@
-import 'dart:math';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/pages/category_products.dart';
+import 'package:second_project/pages/product_detail.dart';
 import 'package:second_project/widget/support_widget.dart';
 
 class Home extends StatefulWidget {
@@ -17,6 +19,21 @@ class _HomeState extends State<Home> {
     "Electrical",
     "Construction",
   ];
+
+  List<Map<String, dynamic>> products = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchProducts();
+  }
+
+  Future<void> fetchProducts() async {
+    final result = await DBHelper.instance.getAllProducts();
+    setState(() {
+      products = result;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,10 +95,6 @@ class _HomeState extends State<Home> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text("Categories", style: AppWidget.semiboldTextFieldStyle()),
-                const Text(
-                  "See All",
-                  style: TextStyle(color: Color.fromARGB(135, 213, 91, 91)),
-                ),
               ],
             ),
             const SizedBox(height: 20.0),
@@ -107,45 +120,30 @@ class _HomeState extends State<Home> {
               ],
             ),
 
-            /// Products Displayed (Vertically)
+            /// Products Displayed
             Expanded(
-              child: ListView(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: productCard(
-                          "Drill",
-                          "Nrs3000",
-                          "assets/images/Drill.png",
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: productCard(
-                          "Screw Driver",
-                          "Nrs200",
-                          "assets/images/screwdriver.jpg",
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: productCard(
-                          "Side Cutters",
-                          "Nrs200",
-                          "assets/images/SideCutters.png",
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      const Expanded(child: SizedBox()), // Empty space
-                    ],
-                  ),
-                ],
-              ),
+              child: products.isEmpty
+                  ? const Center(child: Text("No products available"))
+                  : ListView.builder(
+                      itemCount: (products.length / 2).ceil(),
+                      itemBuilder: (context, rowIndex) {
+                        final index1 = rowIndex * 2;
+                        final index2 = index1 + 1;
+                        final product1 = products[index1];
+                        final product2 = index2 < products.length ? products[index2] : null;
+
+                        return Row(
+                          children: [
+                            Expanded(child: productCard(context, product1)),
+                            const SizedBox(width: 16),
+                            if (product2 != null)
+                              Expanded(child: productCard(context, product2))
+                            else
+                              const Expanded(child: SizedBox()),
+                          ],
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -153,47 +151,62 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Widget productCard(String name, String price, String imagePath) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.0),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: 100,
-            width: double.infinity,
-            child: Image.asset(imagePath, fit: BoxFit.contain),
+  Widget productCard(BuildContext context, Map<String, dynamic> product) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProductDetail(product: product), // ✅ Fixed
           ),
-          const SizedBox(height: 10),
-          Center(child: Text(name, style: AppWidget.semiboldTextFieldStyle())),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                price,
-                style: const TextStyle(
-                  color: Color.fromARGB(135, 213, 91, 91),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (product['image_path'] != null &&
+                File(product['image_path']).existsSync())
+              Image.file(
+                File(product['image_path']),
+                height: 100,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              )
+            else
               Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 251, 72, 56),
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: const Icon(Icons.add, color: Colors.white, size: 20),
+                height: 100,
+                color: Colors.grey[300],
+                child: const Center(child: Icon(Icons.image_not_supported)),
               ),
-            ],
-          ),
-        ],
+            const SizedBox(height: 10),
+            Center(
+              child: Text(
+                product['product_name'] ?? '',
+                style: AppWidget.semiboldTextFieldStyle(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Price: ₹${product['product_price']}",
+              style: const TextStyle(
+                color: Color.fromARGB(135, 213, 91, 91),
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              "Category: ${product['category'] ?? 'Unknown'}",
+              style: const TextStyle(color: Colors.black54),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:second_project/admin/add_product.dart';
 import 'package:second_project/admin/admin_signin.dart';
+import 'package:second_project/admin/user_details.dart';
+import 'package:second_project/admin/view_product.dart';
 import 'package:second_project/widget/support_widget.dart';
 
 class AdminHome extends StatefulWidget {
@@ -73,7 +75,12 @@ class _AdminHomeState extends State<AdminHome> {
                   _buildAdminButton(
                     label: "View All Products",
                     onTap: () {
-                      Navigator.pushNamed(context, '/viewProducts');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ViewProduct(),
+                        ),
+                      );
                     },
                   ),
                   _buildAdminButton(
@@ -85,7 +92,12 @@ class _AdminHomeState extends State<AdminHome> {
                   _buildAdminButton(
                     label: " View Users",
                     onTap: () {
-                      Navigator.pushNamed(context, '/viewUsers');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UserDetailsPage(),
+                        ),
+                      );
                     },
                   ),
                   _buildAdminButton(

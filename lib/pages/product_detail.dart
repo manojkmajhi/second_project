@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:second_project/widget/support_widget.dart';
 
@@ -17,11 +18,19 @@ class ProductDetail extends StatelessWidget {
             Stack(
               children: [
                 Center(
-                  child: Image.asset(
-                    "assets/images/screwdriver.png",
-                    height: 400,
-                    width: 400,
-                  ),
+                  child: product['image_path'] != null &&
+                          File(product['image_path']).existsSync()
+                      ? Image.file(
+                          File(product['image_path']),
+                          height: 400,
+                          width: 400,
+                          fit: BoxFit.cover,
+                        )
+                      : Image.asset(
+                          "assets/images/screwdriver.png",
+                          height: 400,
+                          width: 400,
+                        ),
                 ),
                 Positioned(
                   top: 30,
@@ -45,10 +54,7 @@ class ProductDetail extends StatelessWidget {
               ],
             ),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 15.0,
-                vertical: 30.0,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 30.0),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.only(
@@ -63,12 +69,14 @@ class ProductDetail extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        product['product_name'] ?? 'No name',
-                        style: AppWidget.boldTextFieldStyle(),
+                      Expanded(
+                        child: Text(
+                          product['product_name'] ?? 'No name',
+                          style: AppWidget.boldTextFieldStyle(),
+                        ),
                       ),
                       Text(
-                        "Nrs ${product['product_price']?.toString() ?? '0'}",
+                        "₹ ${product['product_price']?.toString() ?? '0'}",
                         style: const TextStyle(
                           color: Color.fromARGB(135, 213, 91, 91),
                           fontSize: 23,
@@ -84,6 +92,7 @@ class ProductDetail extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text("Details:", style: AppWidget.semiboldTextFieldStyle()),
+                  const SizedBox(height: 5),
                   Text(
                     product['details'] ?? 'No details available.',
                     textAlign: TextAlign.justify,

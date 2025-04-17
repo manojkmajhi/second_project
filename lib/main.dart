@@ -7,10 +7,13 @@ import 'package:second_project/pages/bottomnav.dart';
 import 'package:second_project/pages/category_products.dart';
 import 'package:second_project/pages/home.dart';
 import 'package:second_project/pages/signin.dart';
+import 'package:second_project/data/local/db_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await DBHelper.instance.getDB();
+
   runApp(MyApp());
 }
 
@@ -25,7 +28,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: AddProduct(),
+      home: SignIn(),
     );
   }
 }
