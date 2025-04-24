@@ -6,6 +6,7 @@ import 'package:second_project/pages/bottomnav.dart';
 import 'package:second_project/pages/signup.dart';
 import 'package:second_project/widget/support_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class SignIn extends StatefulWidget {
   const SignIn({super.key});
@@ -15,11 +16,11 @@ class SignIn extends StatefulWidget {
 }
 
 class _SignInState extends State<SignIn> {
-  String? email = "", password = "";
   final _formKey = GlobalKey<FormState>();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberMe = false;
 
   @override
   void dispose() {
@@ -28,77 +29,184 @@ class _SignInState extends State<SignIn> {
     super.dispose();
   }
 
+  Future<bool> hasInternet() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult != ConnectivityResult.none;
+  }
+
   Future<void> userLogin() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
     if (_formKey.currentState!.validate()) {
-      try {
-        // Firebase login
-        UserCredential userCredential = await FirebaseAuth.instance
-            .signInWithEmailAndPassword(email: email!, password: password!);
+      final online = await hasInternet();
 
-        final user = userCredential.user;
+      if (online) {
+        try {
+          UserCredential userCredential = await FirebaseAuth.instance
+              .signInWithEmailAndPassword(email: email, password: password);
 
-        if (user != null) {
+          final user = userCredential.user;
+          if (user != null && user.emailVerified) {
+            final db = await DBHelper.instance.getDB();
+            final prefs = await SharedPreferences.getInstance();
+
+            final result = await db.query(
+              "users",
+              where: "email = ?",
+              whereArgs: [user.email],
+            );
+
+            int userId;
+            if (result.isEmpty) {
+              userId = await db.insert("users", {
+                'name': user.displayName ?? 'User',
+                'email': user.email,
+                'password': password,
+                'image': '',
+              });
+            } else {
+              userId = result.first['id'] as int;
+            }
+
+            await prefs.setInt('user_id', userId);
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Colors.green,
+                content: Text('Logged In Successfully'),
+              ),
+            );
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const BottomNav()),
+            );
+          } else {
+            await FirebaseAuth.instance.signOut();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Colors.orange,
+                content: Text('Please verify your email before logging in.'),
+              ),
+            );
+          }
+        } on FirebaseAuthException catch (_) {
+          // Firebase auth failed while online
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              backgroundColor: Colors.green,
-              content: Text('Logged In Successfully'),
+              backgroundColor: Colors.red,
+              content: Text('Invalid credentials or account does not exist.'),
             ),
           );
-
-          // Save user to local DB if not exists
-          final db = await DBHelper.instance.getDB();
-          final prefs = await SharedPreferences.getInstance();
-
-          final result = await db.query(
-            "users",
-            where: "email = ?",
-            whereArgs: [user.email],
-          );
-
-          if (result.isEmpty) {
-            int newUserId = await db.insert("users", {
-              'name': user.displayName ?? 'No Name',
-              'email': user.email,
-              'password': password, // 🔐 Consider encrypting it in real apps
-            });
-
-            await prefs.setInt('user_id', newUserId);
-            debugPrint("🆕 User inserted and ID saved to SharedPreferences: $newUserId");
-          } else {
-            int existingUserId = result.first['id'] as int;
-            await prefs.setInt('user_id', existingUserId);
-            debugPrint("📥 Existing user ID saved to SharedPreferences: $existingUserId");
-          }
-
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const BottomNav()),
-          );
         }
-      } on FirebaseAuthException catch (e) {
-        String message;
-        switch (e.code) {
-          case 'user-not-found':
-            message = 'No user found with that email address.';
-            break;
-          case 'wrong-password':
-            message = 'Incorrect password. Please try again.';
-            break;
-          case 'invalid-email':
-            message = 'The email address is badly formatted.';
-            break;
-          case 'user-disabled':
-            message = 'This user has been disabled.';
-            break;
-          default:
-            message = 'Email or password is incorrect.';
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: Colors.red, content: Text(message)),
-        );
+      } else {
+        // No internet: try offline login
+        await offlineLogin(email, password);
       }
     }
+  }
+
+  Future<void> offlineLogin(String email, String password) async {
+    final db = await DBHelper.instance.getDB();
+    final prefs = await SharedPreferences.getInstance();
+
+    final result = await db.query(
+      "users",
+      where: "email = ? AND password = ?",
+      whereArgs: [email, password],
+    );
+
+    if (result.isNotEmpty) {
+      int userId = result.first['id'] as int;
+      await prefs.setInt('user_id', userId);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.green,
+          content: Text('Logged In (Offline Mode)'),
+        ),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const BottomNav()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.red,
+          content: Text('Login failed. Check email and password.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> resetPassword() async {
+    final TextEditingController resetEmailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Reset Password"),
+          content: TextField(
+            controller: resetEmailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: "Enter your email",
+              hintText: "example@gmail.com",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () async {
+                final email = resetEmailController.text.trim();
+
+                if (email.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: Colors.red,
+                      content: Text('Please enter an email.'),
+                    ),
+                  );
+                  return;
+                }
+
+                try {
+                  await FirebaseAuth.instance.sendPasswordResetEmail(
+                    email: email,
+                  );
+
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: Colors.green,
+                      content: Text(
+                        'Password reset email sent. Check your inbox.',
+                      ),
+                    ),
+                  );
+                } on FirebaseAuthException catch (e) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: Colors.red,
+                      content: Text(e.message ?? 'Something went wrong.'),
+                    ),
+                  );
+                }
+              },
+              child: const Text("Send Reset Link"),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -120,23 +228,26 @@ class _SignInState extends State<SignIn> {
                     width: 190,
                   ),
                 ),
+                const SizedBox(height: 10),
                 Center(
                   child: Text(
                     "SignIn to ToolKit Nepal",
                     style: AppWidget.boldTextFieldStyle(),
                   ),
                 ),
-                const SizedBox(height: 20.0),
+                const SizedBox(height: 20),
                 Center(
                   child: Text(
-                    "Welcome! to ToolKit Nepal please enter login credentials to continue.",
-                    textAlign: TextAlign.justify,
+                    "Welcome! Please enter your login credentials to continue.",
+                    textAlign: TextAlign.center,
                     style: AppWidget.lightTextFieldStyle(),
                   ),
                 ),
-                const SizedBox(height: 20.0),
+                const SizedBox(height: 20),
+
+                // Email
                 Text("Email", style: AppWidget.semiboldTextFieldStyle()),
-                const SizedBox(height: 20.0),
+                const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.only(left: 20.0),
                   decoration: const BoxDecoration(color: Color(0xFFF4F5F9)),
@@ -147,8 +258,9 @@ class _SignInState extends State<SignIn> {
                       if (value == null || value.isEmpty) {
                         return 'Email cannot be empty';
                       }
-                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                          .hasMatch(value)) {
+                      if (!RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      ).hasMatch(value)) {
                         return 'Enter a valid email';
                       }
                       return null;
@@ -159,19 +271,24 @@ class _SignInState extends State<SignIn> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20.0),
+
+                const SizedBox(height: 20),
+
+                // Password
                 Text("Password", style: AppWidget.semiboldTextFieldStyle()),
-                const SizedBox(height: 20.0),
+                const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.only(left: 20.0),
                   decoration: const BoxDecoration(color: Color(0xFFF4F5F9)),
                   child: TextFormField(
                     controller: passwordController,
                     obscureText: _obscurePassword,
-                    validator: (value) =>
-                        value != null && value.length < 6
-                            ? "Password must be at least 6 characters"
-                            : null,
+                    validator: (value) {
+                      if (value == null || value.length < 6) {
+                        return "Password must be at least 6 characters";
+                      }
+                      return null;
+                    },
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: "Enter your password",
@@ -190,31 +307,55 @@ class _SignInState extends State<SignIn> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20.0),
+
+                const SizedBox(height: 20),
+
+                // Remember Me and Forgot
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: const [
-                    Text(
-                      "Forgot password?",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 15.0,
-                        fontWeight: FontWeight.bold,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Checkbox(
+                          activeColor: Colors.black,
+                          value: _rememberMe,
+                          onChanged: (value) {
+                            setState(() {
+                              _rememberMe = value ?? false;
+                            });
+                          },
+                        ),
+                        const Text(
+                          "Remember Me",
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    GestureDetector(
+                      onTap: resetPassword,
+                      child: const Text(
+                        "Forgot Password?",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 20),
+
+                // Login Button
                 GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      email = emailController.text.trim();
-                      password = passwordController.text.trim();
-                    });
-                    userLogin();
-                  },
+                  onTap: userLogin,
                   child: Container(
-                    width: MediaQuery.of(context).size.width,
+                    width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     decoration: BoxDecoration(
                       color: Colors.black,
@@ -232,62 +373,57 @@ class _SignInState extends State<SignIn> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 15.0),
+
+                const SizedBox(height: 20),
+
+                // Signup and Admin
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
                       "Don't have an account? ",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 20.0,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 16),
                     ),
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => Signup()),
+                          MaterialPageRoute(builder: (_) => const Signup()),
                         );
                       },
                       child: const Text(
                         "Signup",
                         style: TextStyle(
                           color: Colors.red,
-                          fontSize: 20.0,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10.0),
+                const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
                       "Login as Admin? ",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 20.0,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 16),
                     ),
-                    const SizedBox(width: 5.0),
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) => AdminSignin()),
+                            builder: (_) => const AdminSignin(),
+                          ),
                         );
                       },
                       child: const Text(
                         "Admin",
                         style: TextStyle(
                           color: Colors.red,
-                          fontSize: 20.0,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

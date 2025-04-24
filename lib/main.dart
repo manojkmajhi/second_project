@@ -3,8 +3,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:second_project/admin/add_product.dart';
 import 'package:second_project/admin/admin_home.dart';
 import 'package:second_project/firebase_options.dart';
+import 'package:second_project/pages/add_address_info.dart';
 import 'package:second_project/pages/bottomnav.dart';
 import 'package:second_project/pages/category_products.dart';
+import 'package:second_project/pages/checkout.dart';
 import 'package:second_project/pages/home.dart';
 import 'package:second_project/pages/signin.dart';
 import 'package:second_project/data/local/db_helper.dart';
@@ -12,8 +14,8 @@ import 'package:second_project/data/local/db_helper.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await SqfliteInspectorServer().start();
   await DBHelper.instance.getDB();
-
   runApp(MyApp());
 }
 

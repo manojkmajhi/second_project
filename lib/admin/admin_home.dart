@@ -3,6 +3,7 @@ import 'package:second_project/admin/add_product.dart';
 import 'package:second_project/admin/admin_signin.dart';
 import 'package:second_project/admin/user_details.dart';
 import 'package:second_project/admin/view_product.dart';
+import 'package:second_project/pages/signin.dart';
 import 'package:second_project/widget/support_widget.dart';
 
 class AdminHome extends StatefulWidget {
@@ -111,7 +112,7 @@ class _AdminHomeState extends State<AdminHome> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => AdminSignin()),
+                        MaterialPageRoute(builder: (context) => SignIn()), 
                       );
                     },
                     color: Colors.red,

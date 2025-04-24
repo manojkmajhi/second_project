@@ -1,24 +1,22 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SharedPreferenceHelper {
-  // Keys as static constants (unchanged)
   static const String userIdKey = "USERKEY";
   static const String userNameKey = "USERNAMEKEY";
   static const String userEmailKey = "USEREMAILKEY";
   static const String userPasswordKey = "USERPASSWORDKEY";
   static const String userImageKey = "USERIMAGEKEY";
+  static const String cartProductsKey = "cart_products"; // ✅ added
 
-  // Singleton instance
   static final SharedPreferenceHelper _instance =
       SharedPreferenceHelper._internal();
   factory SharedPreferenceHelper() => _instance;
   SharedPreferenceHelper._internal();
 
-  // Cached SharedPreferences instance
   Future<SharedPreferences> get _prefs async =>
       await SharedPreferences.getInstance();
 
-  // User ID operations
+  // Save/Get User ID
   Future<bool> saveUserId(String userId) async {
     final prefs = await _prefs;
     return prefs.setString(userIdKey, userId);
@@ -29,7 +27,7 @@ class SharedPreferenceHelper {
     return prefs.getString(userIdKey);
   }
 
-  // User Name operations
+  // Save/Get User Name
   Future<bool> saveUserName(String userName) async {
     final prefs = await _prefs;
     return prefs.setString(userNameKey, userName);
@@ -40,7 +38,7 @@ class SharedPreferenceHelper {
     return prefs.getString(userNameKey);
   }
 
-  // User Email operations
+  // Save/Get Email
   Future<bool> saveUserEmail(String userEmail) async {
     final prefs = await _prefs;
     return prefs.setString(userEmailKey, userEmail);
@@ -51,7 +49,7 @@ class SharedPreferenceHelper {
     return prefs.getString(userEmailKey);
   }
 
-  // User Password operations (consider security implications)
+  // Save/Get Password
   Future<bool> saveUserPassword(String userPassword) async {
     final prefs = await _prefs;
     return prefs.setString(userPasswordKey, userPassword);
@@ -62,7 +60,7 @@ class SharedPreferenceHelper {
     return prefs.getString(userPasswordKey);
   }
 
-  // User Image operations
+  // Save/Get Image
   Future<bool> saveUserImage(String userImage) async {
     final prefs = await _prefs;
     return prefs.setString(userImageKey, userImage);
@@ -73,15 +71,22 @@ class SharedPreferenceHelper {
     return prefs.getString(userImageKey);
   }
 
-  // Clear all user data (logout functionality)
+  // ✅ Remove Cart Products
+  Future<bool> removeCartProducts() async {
+    final prefs = await _prefs;
+    return prefs.remove(cartProductsKey);
+  }
+
+  // ✅ Clear all user data + cart products (for logout)
   Future<bool> clearUserData() async {
     final prefs = await _prefs;
-    return await Future.wait([
+    return Future.wait([
       prefs.remove(userIdKey),
       prefs.remove(userNameKey),
       prefs.remove(userEmailKey),
       prefs.remove(userPasswordKey),
       prefs.remove(userImageKey),
+      prefs.remove(cartProductsKey), // ✅ clear cart too
     ]).then((results) => results.every((result) => result));
   }
 
@@ -91,7 +96,7 @@ class SharedPreferenceHelper {
     await prefs.clear();
   }
 
-  // Check if user is logged in
+  // Check login
   Future<bool> isUserLoggedIn() async {
     final prefs = await _prefs;
     return prefs.getString(userIdKey) != null;

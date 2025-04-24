@@ -15,7 +15,6 @@ class _ViewProductState extends State<ViewProduct> {
     'Daily Use',
     'Electronics',
     'Agriculture',
-    
   ];
 
   String selectedCategory = 'All';

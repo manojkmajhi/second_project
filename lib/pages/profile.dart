@@ -62,10 +62,11 @@ class _ProfileState extends State<Profile> {
         whereArgs: [userId],
       );
 
-      // Update Firestore
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
-        await DatabaseMethods().updateUserDetails({'name': newName}, currentUser.uid);
+        await DatabaseMethods().updateUserDetails({
+          'name': newName,
+        }, currentUser.uid);
       }
 
       setState(() {
@@ -86,29 +87,30 @@ class _ProfileState extends State<Profile> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Edit Name"),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(hintText: "Enter new name"),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Edit Name"),
+            content: TextField(
+              controller: nameController,
+              decoration: const InputDecoration(hintText: "Enter new name"),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () {
+                  final newName = nameController.text.trim();
+                  if (newName.isNotEmpty) {
+                    updateUserName(newName);
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text("Update"),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              final newName = nameController.text.trim();
-              if (newName.isNotEmpty) {
-                updateUserName(newName);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text("Update"),
-          ),
-        ],
-      ),
     );
   }
 
@@ -142,12 +144,13 @@ class _ProfileState extends State<Profile> {
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_id');
+    await prefs.clear(); // Clears all user-related data
+    await FirebaseAuth.instance.signOut(); // Firebase sign out
 
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => const SignIn()),
+      MaterialPageRoute(builder: (_) => const SignIn()),
       (route) => false,
     );
   }
@@ -155,28 +158,29 @@ class _ProfileState extends State<Profile> {
   void showDeleteConfirmation() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Account"),
-        content: const Text(
-          "Are you sure you want to permanently delete your account? This action cannot be undone.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              deleteAccount();
-            },
-            child: const Text(
-              "Delete",
-              style: TextStyle(color: Colors.red),
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Delete Account"),
+            content: const Text(
+              "Are you sure you want to permanently delete your account? This action cannot be undone.",
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  deleteAccount();
+                },
+                child: const Text(
+                  "Delete",
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -237,10 +241,15 @@ class _ProfileState extends State<Profile> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Name', style: TextStyle(color: Colors.grey)),
+                            const Text(
+                              'Name',
+                              style: TextStyle(color: Colors.grey),
+                            ),
                             Text(
                               userName,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -253,11 +262,19 @@ class _ProfileState extends State<Profile> {
               ),
               const SizedBox(height: 20.0),
               _infoCard(Icons.email_outlined, 'Email', userEmail),
-              const SizedBox(height: 20.0),
-              GestureDetector(
-                onTap: showDeleteConfirmation,
-                child: _actionCard(Icons.delete_outline, 'Delete Account'),
-              ),
+              // const SizedBox(height: 20.0),
+              // GestureDetector(
+              //   onTap: showDeleteConfirmation,
+              //   child: _actionCard(Icons.delete_outline, 'Delete Account'),
+              // ),
+
+              // const SizedBox(height: 20.0),
+              // const Text(
+              //   "More Options",
+              //   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              // ),
+              // const SizedBox(height: 10),
+              // featuresGrid(),
               const SizedBox(height: 20.0),
               GestureDetector(
                 onTap: logout,
@@ -287,7 +304,10 @@ class _ProfileState extends State<Profile> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: const TextStyle(color: Colors.grey)),
-                Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  value,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ],
             ),
           ],
@@ -319,6 +339,64 @@ class _ProfileState extends State<Profile> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget featuresGrid() {
+    final features = [
+      {'icon': Icons.mail_outline, 'label': 'My Messages'},
+      {'icon': Icons.local_offer, 'label': 'Buy Any 3'},
+
+      {'icon': Icons.reviews_outlined, 'label': 'My Reviews'},
+      {'icon': Icons.help_outline, 'label': 'Help Center'},
+
+      {'icon': Icons.group, 'label': 'My Affiliates'},
+      {'icon': Icons.payment, 'label': 'Payment Options'},
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      itemCount: features.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 0.8,
+      ),
+      itemBuilder: (context, index) {
+        final feature = features[index];
+        return GestureDetector(
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${feature['label']} clicked'),
+                duration: Duration(seconds: 1),
+              ),
+            );
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: Colors.white,
+                child: Icon(
+                  feature['icon'] as IconData,
+                  size: 28,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                feature['label'] as String,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

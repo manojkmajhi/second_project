@@ -13,12 +13,7 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  List<String> categories = [
-    "Agriculture",
-    "Daily Use",
-    "Electrical",
-    "Construction",
-  ];
+  List<String> categories = ['All', 'Daily Use', 'Electronics', 'Agriculture'];
 
   List<Map<String, dynamic>> products = [];
 
@@ -122,28 +117,32 @@ class _HomeState extends State<Home> {
 
             /// Products Displayed
             Expanded(
-              child: products.isEmpty
-                  ? const Center(child: Text("No products available"))
-                  : ListView.builder(
-                      itemCount: (products.length / 2).ceil(),
-                      itemBuilder: (context, rowIndex) {
-                        final index1 = rowIndex * 2;
-                        final index2 = index1 + 1;
-                        final product1 = products[index1];
-                        final product2 = index2 < products.length ? products[index2] : null;
+              child:
+                  products.isEmpty
+                      ? const Center(child: Text("No products available"))
+                      : ListView.builder(
+                        itemCount: (products.length / 2).ceil(),
+                        itemBuilder: (context, rowIndex) {
+                          final index1 = rowIndex * 2;
+                          final index2 = index1 + 1;
+                          final product1 = products[index1];
+                          final product2 =
+                              index2 < products.length
+                                  ? products[index2]
+                                  : null;
 
-                        return Row(
-                          children: [
-                            Expanded(child: productCard(context, product1)),
-                            const SizedBox(width: 16),
-                            if (product2 != null)
-                              Expanded(child: productCard(context, product2))
-                            else
-                              const Expanded(child: SizedBox()),
-                          ],
-                        );
-                      },
-                    ),
+                          return Row(
+                            children: [
+                              Expanded(child: productCard(context, product1)),
+                              const SizedBox(width: 16),
+                              if (product2 != null)
+                                Expanded(child: productCard(context, product2))
+                              else
+                                const Expanded(child: SizedBox()),
+                            ],
+                          );
+                        },
+                      ),
             ),
           ],
         ),

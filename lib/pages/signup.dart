@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:second_project/database/database.dart'; // Firebase DB
+import 'package:second_project/database/database.dart';
 import 'package:second_project/database/shared_preferences.dart';
-import 'package:second_project/data/local/db_helper.dart'; // ✅ Add your local DB
+import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/pages/signin.dart';
 import 'package:second_project/widget/support_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,48 +41,67 @@ class _SignupState extends State<Signup> {
   Future<void> registration() async {
     try {
       UserCredential userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email!, password: password!);
+          .createUserWithEmailAndPassword(
+              email: email!, password: password!);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Colors.green,
-          content: Text('User Registered Successfully'),
-        ),
-      );
+      User? user = userCredential.user;
 
-      String id = userCredential.user!.uid;
+      if (user != null) {
+        if (!user.emailVerified) {
+          await user.sendEmailVerification();
+        }
 
-      // Firebase & SharedPreferences
-      await SharedPreferenceHelper().saveUserId(id);
-      await SharedPreferenceHelper().saveUserName(nameController.text);
-      await SharedPreferenceHelper().saveUserEmail(emailController.text);
-      await SharedPreferenceHelper().saveUserImage("assets/logo/user.png");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.green,
+            content: Text(
+                'Registration successful! Verification email sent. Please check your inbox.'),
+          ),
+        );
 
-      Map<String, dynamic> userInfoMap = {
-        "Name": nameController.text,
-        "Email": emailController.text,
-        "ID": id,
-        "ProfileImage": "assets/logo/user.png",
-      };
-      await DatabaseMethods().addUserDetails(userInfoMap, id);
+        String id = user.uid;
 
-      // Inserted into SQLite
-      final db = await DBHelper.instance.getDB();
-      final user = {
-        'name': nameController.text.trim(),
-        'email': emailController.text.trim(),
-        'password': passwordController.text.trim(),
-      };
-      final userId = await db.insert("users", user);
-      debugPrint("🆕 User inserted and ID saved to SharedPreferences: $userId");
+        // Save to SharedPreferences
+        await SharedPreferenceHelper().saveUserId(id);
+        await SharedPreferenceHelper().saveUserName(nameController.text);
+        await SharedPreferenceHelper().saveUserEmail(emailController.text);
+        await SharedPreferenceHelper().saveUserImage("assets/logo/user.png");
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt("user_id", userId);
+        // Save to Firebase
+        Map<String, dynamic> userInfoMap = {
+          "Name": nameController.text,
+          "Email": emailController.text,
+          "ID": id,
+          "ProfileImage": "assets/logo/user.png",
+        };
+        await DatabaseMethods().addUserDetails(userInfoMap, id);
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const SignIn()),
-      );
+        // Save to SQLite
+        final db = await DBHelper.instance.getDB();
+        final userMap = {
+          'name': nameController.text.trim(),
+          'email': emailController.text.trim(),
+          'password': passwordController.text.trim(),
+        };
+        final userId = await db.insert("users", userMap);
+        debugPrint("🆕 User inserted and ID saved to SharedPreferences: $userId");
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt("user_id", userId);
+
+        // Navigate to SignIn screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const SignIn()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text("User creation failed."),
+          ),
+        );
+      }
     } on FirebaseAuthException catch (e) {
       String message = '';
       if (e.code == 'weak-password') {
@@ -93,9 +112,9 @@ class _SignupState extends State<Signup> {
         message = 'Error: ${e.message}';
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.red, content: Text(message)),
+      );
     }
   }
 
@@ -137,7 +156,6 @@ class _SignupState extends State<Signup> {
                 ),
                 const SizedBox(height: 30.0),
 
-                // Full Name
                 _buildInputContainer(
                   child: TextFormField(
                     controller: nameController,
@@ -156,10 +174,8 @@ class _SignupState extends State<Signup> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20.0),
 
-                // Email
                 _buildInputContainer(
                   child: TextFormField(
                     controller: emailController,
@@ -168,9 +184,8 @@ class _SignupState extends State<Signup> {
                       if (value == null || value.isEmpty) {
                         return 'Email cannot be empty';
                       }
-                      if (!RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                      ).hasMatch(value)) {
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                          .hasMatch(value)) {
                         return 'Enter a valid email';
                       }
                       return null;
@@ -181,10 +196,8 @@ class _SignupState extends State<Signup> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20.0),
 
-                // Password
                 _buildInputContainer(
                   child: TextFormField(
                     controller: passwordController,
@@ -216,10 +229,8 @@ class _SignupState extends State<Signup> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20.0),
 
-                // Confirm Password
                 _buildInputContainer(
                   child: TextFormField(
                     controller: confirmPasswordController,
@@ -248,7 +259,6 @@ class _SignupState extends State<Signup> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 50.0),
 
                 Row(
@@ -264,10 +274,8 @@ class _SignupState extends State<Signup> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
 
-                // Sign Up Button
                 GestureDetector(
                   onTap: _submitForm,
                   child: Container(
@@ -289,7 +297,6 @@ class _SignupState extends State<Signup> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 15.0),
 
                 Row(
@@ -304,13 +311,12 @@ class _SignupState extends State<Signup> {
                       ),
                     ),
                     GestureDetector(
-                      onTap:
-                          () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SignIn(),
-                            ),
-                          ),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SignIn(),
+                        ),
+                      ),
                       child: const Text(
                         "Login",
                         style: TextStyle(
