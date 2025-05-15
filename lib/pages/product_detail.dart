@@ -143,7 +143,7 @@ class ProductDetail extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        "₹ ${product['product_price']?.toString() ?? '0'}",
+                        "Nrs. ${product['product_price']?.toString() ?? '0'}",
                         style: const TextStyle(
                           color: Color.fromARGB(135, 213, 91, 91),
                           fontSize: 23,

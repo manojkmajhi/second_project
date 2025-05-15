@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:second_project/database/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DBHelper {
@@ -14,17 +15,14 @@ class DBHelper {
 
   DBHelper._();
   static final DBHelper instance = DBHelper._();
-
   static Database? _myDB;
 
-  // Get or create database instance
   Future<Database> getDB() async {
     if (_myDB != null) return _myDB!;
     _myDB = await openDB();
     return _myDB!;
   }
 
-  // Open database
   Future<Database> openDB() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String path = join(documentsDirectory.path, dbName);
@@ -34,8 +32,6 @@ class DBHelper {
       version: 2,
       onCreate: (Database db, int version) async {
         await db.execute("PRAGMA foreign_keys = ON;");
-
-        // Create users table
         await db.execute('''
           CREATE TABLE $tableName (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,8 +41,6 @@ class DBHelper {
             image TEXT
           )
         ''');
-
-        // Create product table
         await db.execute('''
           CREATE TABLE $productTableName (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,8 +52,6 @@ class DBHelper {
             image_path TEXT
           )
         ''');
-
-        // Create cart table
         await db.execute('''
           CREATE TABLE $cartTableName (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,8 +60,6 @@ class DBHelper {
             FOREIGN KEY (product_id) REFERENCES $productTableName(id) ON DELETE CASCADE
           )
         ''');
-
-        // Create orders table
         await db.execute('''
           CREATE TABLE $orderTableName (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,8 +69,6 @@ class DBHelper {
             FOREIGN KEY (user_id) REFERENCES $tableName(id) ON DELETE CASCADE
           )
         ''');
-
-        // Create wishlist table
         await db.execute('''
           CREATE TABLE $wishlistTableName (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,47 +79,95 @@ class DBHelper {
           )
         ''');
 
-        // Create indexes
         await db.execute("CREATE INDEX idx_email ON $tableName(email);");
-        await db.execute(
-          "CREATE INDEX idx_user_id ON $orderTableName(user_id);",
-        );
-        await db.execute(
-          "CREATE INDEX idx_product_id_cart ON $cartTableName(product_id);",
-        );
-        await db.execute(
-          "CREATE INDEX idx_product_id_wishlist ON $wishlistTableName(product_id);",
-        );
+        await db.execute("CREATE INDEX idx_user_id ON $orderTableName(user_id);");
+        await db.execute("CREATE INDEX idx_product_id_cart ON $cartTableName(product_id);");
+        await db.execute("CREATE INDEX idx_product_id_wishlist ON $wishlistTableName(product_id);");
       },
     );
   }
 
-  // ✅ Insert Product with Category Normalization
-  Future<int> insertProduct(Map<String, dynamic> product) async {
+  // ---------------- User Login ----------------
+  Future<bool> loginUser(String email, String password) async {
     final db = await getDB();
+    final result = await db.query(
+      tableName,
+      where: 'email = ? AND password = ?',
+      whereArgs: [email, password],
+    );
 
-    if (product['category'] != null) {
-      String raw = product['category'].toString().trim();
-      product['category'] =
-          raw[0].toUpperCase() + raw.substring(1).toLowerCase();
+    if (result.isNotEmpty) {
+      final user = result.first;
+
+      await SharedPreferenceHelper().saveUserId(user['id'].toString());
+      await SharedPreferenceHelper().saveUserName(user['name'].toString());
+      await SharedPreferenceHelper().saveUserEmail(user['email'].toString());
+      await SharedPreferenceHelper().saveUserPassword(user['password'].toString());
+      await SharedPreferenceHelper().saveUserImage(user['image']?.toString() ?? '');
+
+      debugPrint("✅ User logged in: ${user['name']}");
+      return true;
     }
 
+    debugPrint("❌ No user found with those credentials");
+    return false;
+  }
+
+  // ---------------- Logout ----------------
+  Future<void> logoutUser() async {
+    await SharedPreferenceHelper().clearUserData();
+    debugPrint("👋 User logged out");
+  }
+
+  Future<bool> isUserLoggedIn() async {
+    return await SharedPreferenceHelper().isUserLoggedIn();
+  }
+
+  Future<Map<String, dynamic>?> getLoggedInUser() async {
+    final userIdStr = await SharedPreferenceHelper().getUserId();
+    if (userIdStr == null) return null;
+
+    final userId = int.tryParse(userIdStr);
+    if (userId == null) return null;
+
+    return await getUserById(userId);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllUsers() async {
+    final db = await getDB();
+    return await db.query(tableName);
+  }
+
+  Future<Map<String, dynamic>?> getUserById(int id) async {
+    final db = await getDB();
+    final result = await db.query(tableName, where: 'id = ?', whereArgs: [id]);
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  Future<int> deleteUserById(int id) async {
+    final db = await getDB();
+    return await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> insertProduct(Map<String, dynamic> product) async {
+    final db = await getDB();
+    if (product['category'] != null) {
+      String raw = product['category'].toString().trim();
+      product['category'] = raw[0].toUpperCase() + raw.substring(1).toLowerCase();
+    }
     return await db.insert(productTableName, product);
   }
 
-  // ✅ Get All Products
   Future<List<Map<String, dynamic>>> getAllProducts() async {
     final db = await getDB();
     return await db.query(productTableName);
   }
 
-  // ✅ DELETE PRODUCT BY ID
   Future<int> deleteProductById(int id) async {
     final db = await getDB();
     return await db.delete(productTableName, where: 'id = ?', whereArgs: [id]);
   }
 
-  // ✅ Normalize Existing Product Categories (Run once)
   Future<void> normalizeProductCategories() async {
     final db = await getDB();
     List<Map<String, dynamic>> products = await db.query(productTableName);
@@ -142,8 +178,7 @@ class DBHelper {
 
       if (rawCategory.isEmpty) continue;
 
-      final normalizedCategory =
-          rawCategory[0].toUpperCase() + rawCategory.substring(1).toLowerCase();
+      final normalizedCategory = rawCategory[0].toUpperCase() + rawCategory.substring(1).toLowerCase();
 
       await db.update(
         productTableName,
@@ -156,27 +191,6 @@ class DBHelper {
     debugPrint("✅ Product categories normalized.");
   }
 
-  // ✅ Get All Users
-  Future<List<Map<String, dynamic>>> getAllUsers() async {
-    final db = await getDB();
-    return await db.query(tableName);
-  }
-
-  // ✅ Get User By ID
-  Future<Map<String, dynamic>?> getUserById(int id) async {
-    final db = await getDB();
-    final result = await db.query(tableName, where: 'id = ?', whereArgs: [id]);
-    return result.isNotEmpty ? result.first : null;
-  }
-
-  // ✅ Delete User By ID
-  Future<int> deleteUserById(int id) async {
-    final db = await getDB();
-    return await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
-  }
-
-
-  // ✅ Delete Entire DB File (for testing)
   Future<void> deleteDatabaseFile() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, dbName);

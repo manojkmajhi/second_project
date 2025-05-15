@@ -11,10 +11,10 @@ class ViewProduct extends StatefulWidget {
 
 class _ViewProductState extends State<ViewProduct> {
   final List<String> categories = [
-    'All',
-    'Daily Use',
-    'Electronics',
-    'Agriculture',
+    "All",
+    "Daily Use",
+    "Electrical",
+    "Agricultural",
   ];
 
   String selectedCategory = 'All';

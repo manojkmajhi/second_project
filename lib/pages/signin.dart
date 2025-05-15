@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:second_project/admin/admin_signin.dart';
+import 'package:second_project/data/local/DatabaseListPage.dart';
 import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/pages/bottomnav.dart';
 import 'package:second_project/pages/signup.dart';
@@ -69,7 +70,10 @@ class _SignInState extends State<SignIn> {
               userId = result.first['id'] as int;
             }
 
-            await prefs.setInt('user_id', userId);
+            await prefs.setInt(
+              'userId',
+              userId,
+            ); // 🔥 FIXED: Save with correct key
 
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -92,7 +96,6 @@ class _SignInState extends State<SignIn> {
             );
           }
         } on FirebaseAuthException catch (_) {
-          // Firebase auth failed while online
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               backgroundColor: Colors.red,
@@ -101,7 +104,6 @@ class _SignInState extends State<SignIn> {
           );
         }
       } else {
-        // No internet: try offline login
         await offlineLogin(email, password);
       }
     }
@@ -119,7 +121,7 @@ class _SignInState extends State<SignIn> {
 
     if (result.isNotEmpty) {
       int userId = result.first['id'] as int;
-      await prefs.setInt('user_id', userId);
+      await prefs.setInt('userId', userId); // 🔥 FIXED: Save with correct key
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -244,8 +246,6 @@ class _SignInState extends State<SignIn> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Email
                 Text("Email", style: AppWidget.semiboldTextFieldStyle()),
                 const SizedBox(height: 10),
                 Container(
@@ -271,10 +271,7 @@ class _SignInState extends State<SignIn> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Password
                 Text("Password", style: AppWidget.semiboldTextFieldStyle()),
                 const SizedBox(height: 10),
                 Container(
@@ -307,10 +304,7 @@ class _SignInState extends State<SignIn> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Remember Me and Forgot
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -348,10 +342,7 @@ class _SignInState extends State<SignIn> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-
-                // Login Button
                 GestureDetector(
                   onTap: userLogin,
                   child: Container(
@@ -373,10 +364,7 @@ class _SignInState extends State<SignIn> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Signup and Admin
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -421,6 +409,35 @@ class _SignInState extends State<SignIn> {
                       },
                       child: const Text(
                         "Admin",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "View Database? ",
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DatabaseListPage(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        "Database",
                         style: TextStyle(
                           color: Colors.red,
                           fontSize: 16,

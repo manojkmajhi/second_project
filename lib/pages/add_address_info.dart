@@ -19,7 +19,17 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
   final cityController = TextEditingController();
   final stateController = TextEditingController();
 
-  String selectedPaymentMethod = 'Credit Card';
+  String? selectedPaymentMethod; 
+  List<Map<String, dynamic>> products = [];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args != null && args is List) {
+      products = args.map((item) => Map<String, dynamic>.from(item)).toList();
+    }
+  }
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
@@ -63,7 +73,6 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
             content: const Text(
               'Your order has been placed successfully and confirmation email sent!',
               textAlign: TextAlign.center,
-
               style: TextStyle(color: Colors.black),
             ),
             actions: [
@@ -85,6 +94,32 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
     );
   }
 
+  double getTotalPrice() {
+    return products.fold(0, (sum, product) {
+      double price =
+          double.tryParse(product['product_price'].toString()) ?? 0.0;
+      int qty = product['quantity'] ?? 1;
+      return sum + (price * qty);
+    });
+  }
+
+  String generateProductDetails() {
+    String details = "";
+    for (var i = 0; i < products.length; i++) {
+      final p = products[i];
+      final name = p['product_name'];
+      final price = double.tryParse(p['product_price'].toString()) ?? 0.0;
+      final quantity = p['quantity'] ?? 1;
+      final subtotal = price * quantity;
+
+      details +=
+          "${i + 1}. $name\n   Price: Nrs.${price.toStringAsFixed(2)} x $quantity = Nrs.${subtotal.toStringAsFixed(2)}\n";
+    }
+
+    details += "\nTotal: Nrs.${getTotalPrice().toStringAsFixed(2)}";
+    return details;
+  }
+
   void _sendEmail() async {
     _showLoaderDialog();
 
@@ -103,18 +138,22 @@ Hello ${nameController.text},
 
 Thank you for your order!
 
-Here are the details:
+Here are your delivery and order details:
+
 Name: ${nameController.text}
 Email: ${emailController.text}
 Phone: ${phoneController.text}
 Address: ${addressController.text}, ${cityController.text}, ${stateController.text}
 Payment Method: $selectedPaymentMethod
 
+Product Details:
+${generateProductDetails()}
+
 Your order has been placed successfully.
 
 Regards,
-Your Store Team
-      ''';
+Your Toolkit Nepal
+''';
 
     try {
       await send(message, smtpServer);
@@ -149,10 +188,16 @@ Your Store Team
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _paymentOptionTile(setState, 'Credit Card'),
-                      _paymentOptionTile(setState, 'Debit Card'),
                       _paymentOptionTile(setState, 'Cash on Delivery'),
                       _paymentOptionTile(setState, 'IME Pay'),
+                      if (selectedPaymentMethod == null)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Please select a payment method',
+                            style: TextStyle(color: Colors.red, fontSize: 13),
+                          ),
+                        ),
                     ],
                   ),
                   actions: [
@@ -172,8 +217,12 @@ Your Store Team
                         ),
                       ),
                       onPressed: () {
-                        Navigator.pop(context);
-                        _sendEmail();
+                        if (selectedPaymentMethod != null) {
+                          Navigator.pop(context);
+                          _sendEmail();
+                        } else {
+                          setState(() {}); // Refresh UI to show error
+                        }
                       },
                       child: const Text('Proceed'),
                     ),

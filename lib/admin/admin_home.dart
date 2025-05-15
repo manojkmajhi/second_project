@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:second_project/admin/add_product.dart';
-import 'package:second_project/admin/admin_signin.dart';
 import 'package:second_project/admin/user_details.dart';
 import 'package:second_project/admin/view_product.dart';
 import 'package:second_project/pages/signin.dart';
@@ -60,7 +59,7 @@ class _AdminHomeState extends State<AdminHome> {
             ),
             const SizedBox(height: 30),
 
-            /// Buttons
+            // Buttons
             Expanded(
               child: ListView(
                 children: [

@@ -24,6 +24,7 @@ class _AdminSignupState extends State<AdminSignin> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Logo and Sign in text
                 Center(
                   child: Image.asset(
                     "assets/logo/ToolKit_logo.png",
@@ -33,7 +34,7 @@ class _AdminSignupState extends State<AdminSignin> {
                 ),
                 Center(
                   child: Text(
-                    "Admin Signin",
+                    "Admin Sign In",
                     style: AppWidget.boldTextFieldStyle(),
                   ),
                 ),
@@ -68,9 +69,9 @@ class _AdminSignupState extends State<AdminSignin> {
                     ),
                   ),
                 ),
+                // Forgot Password
 
                 SizedBox(height: 200.0),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [

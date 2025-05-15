@@ -13,7 +13,7 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  List<String> categories = ['All', 'Daily Use', 'Electronics', 'Agriculture'];
+  List<String> categories = ["All", "Daily Use", "Electrical", "Agricultural"];
 
   List<Map<String, dynamic>> products = [];
 
@@ -53,15 +53,15 @@ class _HomeState extends State<Home> {
                     ),
                   ],
                 ),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(30.0),
-                  child: Image.asset(
-                    "assets/logo/user.png",
-                    height: 50,
-                    width: 50,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+                // ClipRRect(
+                //   borderRadius: BorderRadius.circular(30.0),
+                //   child: Image.asset(
+                //     "assets/logo/user.png",
+                //     height: 50,
+                //     width: 50,
+                //     fit: BoxFit.cover,
+                //   ),
+                // ),
               ],
             ),
 
@@ -193,7 +193,7 @@ class _HomeState extends State<Home> {
             ),
             const SizedBox(height: 8),
             Text(
-              "Price: ₹${product['product_price']}",
+              "Price: Nrs.${product['product_price']}",
               style: const TextStyle(
                 color: Color.fromARGB(135, 213, 91, 91),
                 fontSize: 16,

@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/database/database.dart';
 import 'package:second_project/pages/signin.dart';
@@ -16,6 +18,7 @@ class Profile extends StatefulWidget {
 class _ProfileState extends State<Profile> {
   String userName = '';
   String userEmail = '';
+  String? userImagePath;
   int? userId;
 
   @override
@@ -36,19 +39,54 @@ class _ProfileState extends State<Profile> {
         where: "id = ?",
         whereArgs: [userId],
       );
-      debugPrint("SQLite user query result: $result");
 
       if (result.isNotEmpty) {
         final user = result.first;
         setState(() {
           userName = user['name']?.toString() ?? 'Unknown';
           userEmail = user['email']?.toString() ?? 'Unknown';
+          userImagePath = user['image']?.toString();
         });
-      } else {
-        debugPrint("No user found with ID: $userId");
       }
-    } else {
-      debugPrint(" user_id not found in SharedPreferences");
+    }
+  }
+
+  Future<void> updateUserImage(String imagePath) async {
+    if (userId != null) {
+      final db = await DBHelper.instance.getDB();
+      await db.update(
+        "users",
+        {'image': imagePath},
+        where: "id = ?",
+        whereArgs: [userId],
+      );
+      setState(() {
+        userImagePath = imagePath;
+      });
+
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        await DatabaseMethods().updateUserDetails({
+          'image': imagePath,
+        }, currentUser.uid);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile image updated'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  Future<void> pickImage() async {
+    final pickedFile = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+    );
+
+    if (pickedFile != null) {
+      await updateUserImage(pickedFile.path);
     }
   }
 
@@ -114,73 +152,16 @@ class _ProfileState extends State<Profile> {
     );
   }
 
-  Future<void> deleteAccount() async {
-    final prefs = await SharedPreferences.getInstance();
-    final db = await DBHelper.instance.getDB();
-    final currentUser = FirebaseAuth.instance.currentUser;
-
-    if (userId != null) {
-      await db.delete("users", where: "id = ?", whereArgs: [userId]);
-    }
-
-    if (currentUser != null) {
-      try {
-        await DatabaseMethods().deleteUserFromFirestore(currentUser.uid);
-        await currentUser.delete();
-      } catch (e) {
-        debugPrint("Error deleting user from Firebase: $e");
-      }
-    }
-
-    await prefs.remove('user_id');
-
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const SignIn()),
-      (route) => false,
-    );
-  }
-
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear(); // Clears all user-related data
-    await FirebaseAuth.instance.signOut(); // Firebase sign out
+    await prefs.clear();
+    await FirebaseAuth.instance.signOut();
 
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const SignIn()),
       (route) => false,
-    );
-  }
-
-  void showDeleteConfirmation() {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text("Delete Account"),
-            content: const Text(
-              "Are you sure you want to permanently delete your account? This action cannot be undone.",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  deleteAccount();
-                },
-                child: const Text(
-                  "Delete",
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
     );
   }
 
@@ -203,78 +184,74 @@ class _ProfileState extends State<Profile> {
       ),
       body: SingleChildScrollView(
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
+          margin: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(),
-                  ),
-                  height: 120,
-                  width: 120,
-                  child: ClipOval(
-                    child: Image.asset(
-                      "assets/logo/user.png",
-                      fit: BoxFit.cover,
+                child: Stack(
+                  children: [
+                    Container(
+                      height: 120,
+                      width: 120,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(),
+                      ),
+                      child: ClipOval(
+                        child:
+                            userImagePath != null && userImagePath!.isNotEmpty
+                                ? Image.file(
+                                  File(userImagePath!),
+                                  fit: BoxFit.cover,
+                                )
+                                : Image.asset(
+                                  "assets/logo/user.png",
+                                  fit: BoxFit.cover,
+                                ),
+                      ),
                     ),
-                  ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: pickImage,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            size: 20,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20.0),
               GestureDetector(
                 onTap: showEditNameDialog,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.all(Radius.circular(10.0)),
-                  ),
-                  width: MediaQuery.of(context).size.width,
-                  child: Container(
-                    margin: const EdgeInsets.all(10.0),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.person_2_outlined, size: 30.0),
-                        const SizedBox(width: 10.0),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Name',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                            Text(
-                              userName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Spacer(),
-                        const Icon(Icons.edit_outlined, color: Colors.grey),
-                      ],
-                    ),
-                  ),
+                child: _infoCard(
+                  Icons.person_2_outlined,
+                  'Name',
+                  userName,
+                  editable: true,
                 ),
               ),
               const SizedBox(height: 20.0),
               _infoCard(Icons.email_outlined, 'Email', userEmail),
-              // const SizedBox(height: 20.0),
-              // GestureDetector(
-              //   onTap: showDeleteConfirmation,
-              //   child: _actionCard(Icons.delete_outline, 'Delete Account'),
-              // ),
-
-              // const SizedBox(height: 20.0),
-              // const Text(
-              //   "More Options",
-              //   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              // ),
-              // const SizedBox(height: 10),
-              // featuresGrid(),
               const SizedBox(height: 20.0),
               GestureDetector(
                 onTap: logout,
@@ -287,20 +264,25 @@ class _ProfileState extends State<Profile> {
     );
   }
 
-  Widget _infoCard(IconData icon, String label, String value) {
+  Widget _infoCard(
+    IconData icon,
+    String label,
+    String value, {
+    bool editable = false,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: const BorderRadius.all(Radius.circular(10.0)),
+        borderRadius: BorderRadius.circular(10.0),
       ),
-      width: MediaQuery.of(context).size.width,
-      child: Container(
-        margin: const EdgeInsets.all(10.0),
-        child: Row(
-          children: [
-            Icon(icon, size: 30.0),
-            const SizedBox(width: 10.0),
-            Column(
+      padding: const EdgeInsets.all(10.0),
+      width: double.infinity,
+      child: Row(
+        children: [
+          Icon(icon, size: 30.0),
+          const SizedBox(width: 10.0),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: const TextStyle(color: Colors.grey)),
@@ -310,8 +292,9 @@ class _ProfileState extends State<Profile> {
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          if (editable) const Icon(Icons.edit_outlined, color: Colors.grey),
+        ],
       ),
     );
   }
@@ -322,81 +305,18 @@ class _ProfileState extends State<Profile> {
         color: Colors.white,
         borderRadius: BorderRadius.all(Radius.circular(10.0)),
       ),
-      width: MediaQuery.of(context).size.width,
-      child: Padding(
-        padding: const EdgeInsets.all(10.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 30.0),
-                const SizedBox(width: 10.0),
-                Text(title, style: AppWidget.semiboldTextFieldStyle()),
-              ],
-            ),
-            const Icon(Icons.arrow_forward_ios_outlined),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget featuresGrid() {
-    final features = [
-      {'icon': Icons.mail_outline, 'label': 'My Messages'},
-      {'icon': Icons.local_offer, 'label': 'Buy Any 3'},
-
-      {'icon': Icons.reviews_outlined, 'label': 'My Reviews'},
-      {'icon': Icons.help_outline, 'label': 'Help Center'},
-
-      {'icon': Icons.group, 'label': 'My Affiliates'},
-      {'icon': Icons.payment, 'label': 'Payment Options'},
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      itemCount: features.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 0.8,
-      ),
-      itemBuilder: (context, index) {
-        final feature = features[index];
-        return GestureDetector(
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${feature['label']} clicked'),
-                duration: Duration(seconds: 1),
-              ),
-            );
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.white,
-                child: Icon(
-                  feature['icon'] as IconData,
-                  size: 28,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                feature['label'] as String,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
+      width: double.infinity,
+      padding: const EdgeInsets.all(10.0),
+      child: Row(
+        children: [
+          Icon(icon, size: 30.0),
+          const SizedBox(width: 10.0),
+          Expanded(
+            child: Text(title, style: AppWidget.semiboldTextFieldStyle()),
           ),
-        );
-      },
+          const Icon(Icons.arrow_forward_ios_outlined),
+        ],
+      ),
     );
   }
 }

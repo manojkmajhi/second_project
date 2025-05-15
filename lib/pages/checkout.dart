@@ -112,7 +112,7 @@ class _CheckoutState extends State<Checkout> {
                                 ),
                               ),
                               Text(
-                                "₹${price.toStringAsFixed(2)}",
+                                "Nrs.${price.toStringAsFixed(2)}",
                                 style: const TextStyle(
                                   fontSize: 18,
                                   color: Colors.black,
@@ -141,7 +141,7 @@ class _CheckoutState extends State<Checkout> {
                           ),
                         ),
                         Text(
-                          "₹${(price * quantity).toStringAsFixed(2)}",
+                          "Nrs.${(price * quantity).toStringAsFixed(2)}",
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -188,7 +188,10 @@ class _CheckoutState extends State<Checkout> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const AddAddressInfo()),
+                    MaterialPageRoute(
+                      builder: (_) => const AddAddressInfo(),
+                      settings: RouteSettings(arguments: products),
+                    ),
                   );
                 },
 
