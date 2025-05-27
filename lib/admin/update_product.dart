@@ -4,24 +4,25 @@ import 'package:image_picker/image_picker.dart';
 import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/widget/support_widget.dart';
 
-class AddProduct extends StatefulWidget {
-  const AddProduct({super.key});
+class UpdateProduct extends StatefulWidget {
+  final Map<String, dynamic> product;
+
+  const UpdateProduct({super.key, required this.product});
 
   @override
-  State<AddProduct> createState() => _AddProductState();
+  State<UpdateProduct> createState() => _UpdateProductState();
 }
 
-class _AddProductState extends State<AddProduct> {
+class _UpdateProductState extends State<UpdateProduct> {
   final ImagePicker _picker = ImagePicker();
   File? selectedImage;
-
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _priceController = TextEditingController();
-  final TextEditingController _quantityController = TextEditingController();
-  final TextEditingController _detailsController = TextEditingController();
 
-  // Make sure this is directly linked to the dropdown's value
+  late TextEditingController _nameController;
+  late TextEditingController _priceController;
+  late TextEditingController _quantityController;
+  late TextEditingController _detailsController;
+
   String? selectedCategory;
   bool isLoading = false;
 
@@ -31,6 +32,23 @@ class _AddProductState extends State<AddProduct> {
     "Electrical",
     "Agricultural",
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(
+      text: widget.product['product_name'],
+    );
+    _priceController = TextEditingController(
+      text: widget.product['product_price'].toString(),
+    );
+    _quantityController = TextEditingController(
+      text: widget.product['product_quantity'].toString(),
+    );
+    _detailsController = TextEditingController(text: widget.product['details']);
+    selectedCategory = widget.product['category'];
+    selectedImage = File(widget.product['image_path']);
+  }
 
   Future<void> getImage() async {
     showModalBottomSheet(
@@ -46,9 +64,8 @@ class _AddProductState extends State<AddProduct> {
                   final image = await _picker.pickImage(
                     source: ImageSource.camera,
                   );
-                  if (image != null) {
+                  if (image != null)
                     setState(() => selectedImage = File(image.path));
-                  }
                 },
               ),
               ListTile(
@@ -59,9 +76,8 @@ class _AddProductState extends State<AddProduct> {
                   final image = await _picker.pickImage(
                     source: ImageSource.gallery,
                   );
-                  if (image != null) {
+                  if (image != null)
                     setState(() => selectedImage = File(image.path));
-                  }
                 },
               ),
             ],
@@ -69,7 +85,7 @@ class _AddProductState extends State<AddProduct> {
     );
   }
 
-  Future<void> saveProductToDB() async {
+  Future<void> updateProductToDB() async {
     if (!_formKey.currentState!.validate()) return;
 
     if (selectedImage == null) {
@@ -79,13 +95,9 @@ class _AddProductState extends State<AddProduct> {
       return;
     }
 
-    // This is the correct check, ensure selectedCategory is updated
-    if (selectedCategory == null ||
-        selectedCategory!.isEmpty ||
-        selectedCategory == "All") {
-      // Added || selectedCategory == "All" for robustness
+    if (selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a valid category.")),
+        const SnackBar(content: Text("Please select a category.")),
       );
       return;
     }
@@ -93,92 +105,30 @@ class _AddProductState extends State<AddProduct> {
     setState(() => isLoading = true);
 
     try {
-      final db = await DBHelper.instance.getDB();
-      final trimmedName = _nameController.text.trim();
-      final imagePath = selectedImage!.path;
+      final updatedProduct = {
+        'id': widget.product['id'],
+        'product_name': _nameController.text.trim(),
+        'product_price': double.parse(_priceController.text),
+        'product_quantity': int.parse(_quantityController.text),
+        'details': _detailsController.text.trim(),
+        'category': selectedCategory!,
+        'image_path': selectedImage!.path,
+      };
 
-      // Check for duplicate name
-      final existingByName = await db.query(
-        DBHelper.productTableName, // Use constant for table name
-        where: 'product_name = ?',
-        whereArgs: [trimmedName],
-      );
-      if (existingByName.isNotEmpty) {
-        setState(() => isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("A product with this name already exists."),
-          ),
-        );
-        return;
-      }
-
-      // Check for duplicate image
-      final existingByImage = await db.query(
-        DBHelper.productTableName, // Use constant for table name
-        where: 'image_path = ?',
-        whereArgs: [imagePath],
-      );
-      if (existingByImage.isNotEmpty) {
-        setState(() => isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("A product with this image already exists."),
-          ),
-        );
-        return;
-      }
-
-      await db.insert(DBHelper.productTableName, {
-        // Use constant for table name
-        "product_name": trimmedName,
-        "product_price": double.parse(_priceController.text),
-        "product_quantity": int.parse(_quantityController.text),
-        "details": _detailsController.text.trim(),
-        "category": selectedCategory!, // Use selectedCategory here
-        "image_path": imagePath,
-      });
+      await DBHelper.instance.updateProduct(updatedProduct);
 
       setState(() => isLoading = false);
 
-      final result = await showDialog(
-        context: context,
-        builder:
-            (ctx) => AlertDialog(
-              title: const Text("Product Saved"),
-              content: const Text("Do you want to add another product?"),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text("No"),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text("Yes"),
-                ),
-              ],
-            ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Product updated successfully!")),
       );
-
-      if (result == true) {
-        _formKey.currentState!.reset();
-        _nameController.clear();
-        _priceController.clear();
-        _quantityController.clear();
-        _detailsController.clear();
-        setState(() {
-          selectedImage = null;
-          selectedCategory = null; // Reset category for new product
-        });
-      } else {
-        Navigator.pop(context);
-      }
+      Navigator.pop(context, true);
     } catch (e) {
       setState(() => isLoading = false);
-      debugPrint("Error saving product: $e");
+      debugPrint("Error updating product: $e");
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("Error saving product: $e")));
+      ).showSnackBar(SnackBar(content: Text("Error updating product: $e")));
     }
   }
 
@@ -193,7 +143,10 @@ class _AddProductState extends State<AddProduct> {
           child: const Icon(Icons.arrow_back_ios, color: Colors.black),
         ),
         title: Center(
-          child: Text('Add Product', style: AppWidget.semiboldTextFieldStyle()),
+          child: Text(
+            'Update Product',
+            style: AppWidget.semiboldTextFieldStyle(),
+          ),
         ),
       ),
       body:
@@ -208,7 +161,7 @@ class _AddProductState extends State<AddProduct> {
                       children: [
                         Center(
                           child: Text(
-                            'Upload the product Image',
+                            'Update the product Image',
                             style: AppWidget.lightTextFieldStyle(),
                           ),
                         ),
@@ -242,21 +195,21 @@ class _AddProductState extends State<AddProduct> {
                         const SizedBox(height: 10),
                         _buildTextField(
                           _nameController,
-                          'Enter Product Name',
-                          'Product name cannot be empty',
+                          'Product Name',
+                          'Name required',
                         ),
                         const SizedBox(height: 10),
                         _buildTextField(
                           _priceController,
-                          'Enter Product Price',
-                          'Enter valid price',
+                          'Price',
+                          'Price required',
                           isNumber: true,
                         ),
                         const SizedBox(height: 10),
                         _buildTextField(
                           _quantityController,
-                          'Enter Product Quantity',
-                          'Enter valid quantity',
+                          'Quantity',
+                          'Quantity required',
                           isNumber: true,
                         ),
                         const SizedBox(height: 10),
@@ -265,7 +218,7 @@ class _AddProductState extends State<AddProduct> {
                         _buildDescriptionField(),
                         const SizedBox(height: 20),
                         ElevatedButton(
-                          onPressed: saveProductToDB,
+                          onPressed: updateProductToDB,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(
@@ -277,7 +230,7 @@ class _AddProductState extends State<AddProduct> {
                             ),
                           ),
                           child: const Text(
-                            'Add Product',
+                            'Update Product',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 20,
@@ -344,7 +297,7 @@ class _AddProductState extends State<AddProduct> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: selectedCategory, // Use selectedCategory here
+          value: selectedCategory,
           isExpanded: true,
           icon: const Icon(
             Icons.keyboard_arrow_down_rounded,
@@ -371,11 +324,7 @@ class _AddProductState extends State<AddProduct> {
                   ),
                 );
               }).toList(),
-          onChanged: (val) {
-            setState(() {
-              selectedCategory = val; // Update selectedCategory
-            });
-          },
+          onChanged: (val) => setState(() => selectedCategory = val),
         ),
       ),
     );

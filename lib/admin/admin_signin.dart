@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart ';
 import 'package:second_project/admin/admin_home.dart';
+import 'package:second_project/pages/signin.dart';
 import 'package:second_project/widget/support_widget.dart';
 
 class AdminSignin extends StatefulWidget {
@@ -69,8 +70,8 @@ class _AdminSignupState extends State<AdminSignin> {
                     ),
                   ),
                 ),
-                // Forgot Password
 
+                // Forgot Password
                 SizedBox(height: 200.0),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -111,6 +112,36 @@ class _AdminSignupState extends State<AdminSignin> {
                       ),
                     ),
                   ),
+                ),
+                const SizedBox(height: 20.0),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "Login as User? ",
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SignIn()),
+                        );
+                      },
+                      child: const Text(
+                        "User",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

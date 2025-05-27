@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/database/database.dart';
+import 'package:second_project/database/shared_preferences.dart';
 import 'package:second_project/pages/signin.dart';
 import 'package:second_project/widget/support_widget.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 class Profile extends StatefulWidget {
   const Profile({super.key});
@@ -16,101 +17,266 @@ class Profile extends StatefulWidget {
 }
 
 class _ProfileState extends State<Profile> {
-  String userName = '';
-  String userEmail = '';
+  String userName = 'Loading...';
+  String userEmail = 'Loading...';
   String? userImagePath;
-  int? userId;
+  String? currentUserId; // Firebase User ID (UID)
+  final SharedPreferenceHelper _sharedPrefsHelper = SharedPreferenceHelper();
+
+  late StreamSubscription<User?> _authStateSubscription;
 
   @override
   void initState() {
     super.initState();
-    fetchUserData();
+
+    _fetchUserData();
+
+    _authStateSubscription = FirebaseAuth.instance.authStateChanges().listen((
+      User? user,
+    ) {
+      debugPrint("Auth state changed detected: User is ${user?.uid ?? 'null'}");
+
+      if (user != null && user.uid != currentUserId) {
+        debugPrint("New user detected (${user.uid}). Re-fetching user data...");
+        _fetchUserData();
+      } else if (user == null && currentUserId != null) {
+        debugPrint("User logged out. Resetting profile data...");
+        _resetProfileData(); // Clear UI data immediately
+      } else if (user != null && user.uid == currentUserId) {
+        // Same user logged in, but potentially updated info (e.g., displayName changed).
+        // Or, if the widget was rebuilt, ensure data is fresh.
+        debugPrint("Same user, re-fetching to ensure data is fresh.");
+        _fetchUserData();
+      }
+      // If user is null and currentUserId is already null, no action needed (already logged out)
+    });
   }
 
-  Future<void> fetchUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    userId = prefs.getInt('user_id');
-    debugPrint("userId from SharedPreferences: $userId");
+  @override
+  void dispose() {
+    _authStateSubscription
+        .cancel(); // Cancel the subscription to prevent memory leaks
+    super.dispose();
+  }
 
-    if (userId != null) {
-      final db = await DBHelper.instance.getDB();
-      final result = await db.query(
-        "users",
-        where: "id = ?",
-        whereArgs: [userId],
-      );
+  // New method to reset all profile data in the UI
+  void _resetProfileData() {
+    setState(() {
+      userName = 'Guest';
+      userEmail = 'Not logged in';
+      userImagePath = null;
+      currentUserId = null;
+    });
+  }
 
-      if (result.isNotEmpty) {
-        final user = result.first;
+  Future<void> _fetchUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // Temporarily store fetched data to minimize setState calls
+      String fetchedName = user.displayName ?? 'No Name';
+      String fetchedEmail = user.email ?? 'No Email';
+      String? fetchedImagePath;
+
+      // Update currentUserId immediately to reflect the active user
+      setState(() {
+        currentUserId = user.uid;
+        // Set initial values from Firebase Auth, which might be "Loading..." before Firestore/Local DB fetch
+        userName = fetchedName;
+        userEmail = fetchedEmail;
+        userImagePath = null; // Clear old image path for a fresh fetch
+      });
+
+      // Fetch additional user data from Firestore (e.g., custom profile image URL and more accurate name)
+      try {
+        final docSnapshot = await DatabaseMethods().getUserDetails(user.uid);
+        if (docSnapshot.exists) {
+          final userData = docSnapshot.data() as Map<String, dynamic>;
+          fetchedName =
+              userData['name']?.toString() ??
+              fetchedName; // Prioritize Firestore name
+          fetchedImagePath =
+              userData['image']?.toString(); // Get image URL from Firestore
+          debugPrint(
+            "Fetched from Firestore: Name=$fetchedName, Image=$fetchedImagePath",
+          );
+        } else {
+          debugPrint("Firestore document for user ${user.uid} does not exist.");
+        }
+      } catch (e) {
+        debugPrint("Error fetching user data from Firestore: $e");
+      }
+
+      // Also try to get image and name from local SQLite if needed (e.g., for offline caching)
+
+      final storedLocalUserId = await _sharedPrefsHelper.getUserId();
+      if (storedLocalUserId != null && storedLocalUserId == user.uid) {
+        final db = await DBHelper.instance.getDB();
+        final result = await db.query(
+          "users",
+          where: "id = ?",
+          whereArgs: [
+            int.tryParse(storedLocalUserId) ?? -1,
+          ], // Use tryParse and default for safety
+        );
+
+        if (result.isNotEmpty) {
+          final localUser = result.first;
+          // Prioritize Firebase/Firestore image, otherwise use local cached image
+          fetchedImagePath = fetchedImagePath ?? localUser['image']?.toString();
+          // If name is still generic ('Unknown' or email), try to get it from local DB
+          fetchedName =
+              (fetchedName == 'Unknown' || fetchedName == user.email)
+                  ? localUser['name']?.toString() ?? fetchedName
+                  : fetchedName;
+          debugPrint(
+            "Fetched from local SQLite: Name=${localUser['name']}, Image=${localUser['image']}",
+          );
+        } else {
+          debugPrint("No local SQLite entry found for user ${user.uid}");
+        }
+      } else {
+        debugPrint(
+          "Stored local user ID does not match current Firebase UID or is null.",
+        );
+      }
+
+      // Final update of UI state once all sources have been checked
+      if (mounted) {
         setState(() {
-          userName = user['name']?.toString() ?? 'Unknown';
-          userEmail = user['email']?.toString() ?? 'Unknown';
-          userImagePath = user['image']?.toString();
+          userName = fetchedName;
+          userEmail = fetchedEmail;
+          userImagePath = fetchedImagePath;
         });
       }
+    } else {
+      // If no user is logged in, immediately reset UI
+      debugPrint("No user currently logged in. Resetting UI.");
+      _resetProfileData();
     }
   }
 
-  Future<void> updateUserImage(String imagePath) async {
-    if (userId != null) {
-      final db = await DBHelper.instance.getDB();
-      await db.update(
-        "users",
-        {'image': imagePath},
-        where: "id = ?",
-        whereArgs: [userId],
-      );
-      setState(() {
-        userImagePath = imagePath;
-      });
+  // Updates both local SQLite and Firestore with the new image path/URL
+  Future<void> updateUserImage(File imageFile) async {
+    if (currentUserId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User not logged in.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
 
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser != null) {
-        await DatabaseMethods().updateUserDetails({
-          'image': imagePath,
-        }, currentUser.uid);
+    // 1. Upload image to Firebase Storage
+    String? imageUrl = await DatabaseMethods().uploadImageAndGetUrl(
+      imageFile,
+      currentUserId!,
+    );
+
+    if (imageUrl != null) {
+      // 2. Update image URL in Firestore
+      await DatabaseMethods().updateUserDetails({
+        'image': imageUrl,
+      }, currentUserId!);
+
+      // 3. Update image path in local SQLite (store the URL here)
+      final storedLocalUserId = await _sharedPrefsHelper.getUserId();
+      // Only update local DB if the stored ID matches the current user
+      if (storedLocalUserId != null && storedLocalUserId == currentUserId) {
+        final db = await DBHelper.instance.getDB();
+        await db.update(
+          "users",
+          {'image': imageUrl},
+          where: "id = ?",
+          whereArgs: [int.parse(storedLocalUserId)],
+        );
+      } else {
+        debugPrint(
+          "Local DB update skipped: storedLocalUserId mismatch or null.",
+        );
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile image updated'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      setState(() {
+        userImagePath = imageUrl; // Update UI with the new image URL
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile image updated'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to upload image.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   Future<void> pickImage() async {
     final pickedFile = await ImagePicker().pickImage(
       source: ImageSource.gallery,
+      imageQuality: 70, // Compress image for faster upload
     );
 
     if (pickedFile != null) {
-      await updateUserImage(pickedFile.path);
+      await updateUserImage(File(pickedFile.path));
     }
   }
 
+  // Updates both local SQLite and Firestore with the new name
   Future<void> updateUserName(String newName) async {
-    if (userId != null) {
+    if (currentUserId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User not logged in.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    //  Update display name in Firebase Auth
+    await FirebaseAuth.instance.currentUser?.updateDisplayName(newName);
+
+    // Update name in Firestore
+    await DatabaseMethods().updateUserDetails({
+      'name': newName,
+    }, currentUserId!);
+
+    // Update name in local SQLite
+    final storedLocalUserId = await _sharedPrefsHelper.getUserId();
+    if (storedLocalUserId != null && storedLocalUserId == currentUserId) {
+      // Ensure local ID matches current Firebase ID
       final db = await DBHelper.instance.getDB();
       await db.update(
         "users",
         {'name': newName},
         where: "id = ?",
-        whereArgs: [userId],
+        whereArgs: [int.parse(storedLocalUserId)],
       );
+    } else {
+      debugPrint(
+        "Local DB name update skipped: storedLocalUserId mismatch or null.",
+      );
+    }
 
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser != null) {
-        await DatabaseMethods().updateUserDetails({
-          'name': newName,
-        }, currentUser.uid);
-      }
+    setState(() {
+      userName = newName;
+    });
 
-      setState(() {
-        userName = newName;
-      });
-
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Name updated successfully'),
@@ -153,9 +319,17 @@ class _ProfileState extends State<Profile> {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    // Clear user data from SharedPreferences (including the local user ID)
+    await _sharedPrefsHelper
+        .clearUserData(); // Make sure this clears the USERKEY
+    debugPrint(" User data cleared from SharedPreferences");
+
+    // Sign out from Firebase
     await FirebaseAuth.instance.signOut();
+    debugPrint(" User signed out from Firebase");
+
+    // Immediately reset UI state before navigating
+    _resetProfileData();
 
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
@@ -196,15 +370,38 @@ class _ProfileState extends State<Profile> {
                       width: 120,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(),
+                        border: Border.all(color: Colors.grey.shade400),
                       ),
                       child: ClipOval(
                         child:
                             userImagePath != null && userImagePath!.isNotEmpty
-                                ? Image.file(
-                                  File(userImagePath!),
-                                  fit: BoxFit.cover,
-                                )
+                                ? (userImagePath!.startsWith('http')
+                                    ? Image.network(
+                                      userImagePath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (
+                                            context,
+                                            error,
+                                            stackTrace,
+                                          ) => Image.asset(
+                                            "assets/logo/user.png", // Fallback for network image errors
+                                            fit: BoxFit.cover,
+                                          ),
+                                    )
+                                    : Image.file(
+                                      File(userImagePath!),
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (
+                                            context,
+                                            error,
+                                            stackTrace,
+                                          ) => Image.asset(
+                                            "assets/logo/user.png", // Fallback for local file errors
+                                            fit: BoxFit.cover,
+                                          ),
+                                    ))
                                 : Image.asset(
                                   "assets/logo/user.png",
                                   fit: BoxFit.cover,

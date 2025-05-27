@@ -84,20 +84,20 @@ class _CheckoutState extends State<Checkout> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child:
-                              product['image_path'] != null &&
-                                      File(product['image_path']).existsSync()
-                                  ? Image.file(
-                                    File(product['image_path']),
-                                    height: 70,
-                                    width: 70,
-                                    fit: BoxFit.cover,
-                                  )
-                                  : Image.asset(
-                                    "assets/logo/ToolKit.png",
-                                    height: 70,
-                                    width: 70,
-                                  ),
+                          child: product['image_path'] != null &&
+                                  File(product['image_path']).existsSync()
+                              ? Image.file(
+                                  File(product['image_path']),
+                                  height: 70,
+                                  width: 70,
+                                  fit: BoxFit.cover,
+                                )
+                              : Image.asset(
+                                  "assets/logo/ToolKit.png",
+                                  height: 70,
+                                  width: 70,
+                                  fit: BoxFit.cover,
+                                ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -171,7 +171,7 @@ class _CheckoutState extends State<Checkout> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    "₹${getTotalPrice().toStringAsFixed(2)}",
+                    "Nrs.${getTotalPrice().toStringAsFixed(2)}",
                     style: const TextStyle(
                       fontSize: 20,
                       color: Colors.green,
@@ -194,7 +194,6 @@ class _CheckoutState extends State<Checkout> {
                     ),
                   );
                 },
-
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 16),

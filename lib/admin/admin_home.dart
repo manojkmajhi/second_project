@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:second_project/admin/add_product.dart';
+import 'package:second_project/admin/admin_signin.dart';
+import 'package:second_project/admin/orders.dart';
 import 'package:second_project/admin/user_details.dart';
 import 'package:second_project/admin/view_product.dart';
-import 'package:second_project/pages/signin.dart';
+
 import 'package:second_project/widget/support_widget.dart';
 
 class AdminHome extends StatefulWidget {
@@ -86,7 +88,12 @@ class _AdminHomeState extends State<AdminHome> {
                   _buildAdminButton(
                     label: "Manage Orders",
                     onTap: () {
-                      Navigator.pushNamed(context, '/manageOrders');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const OrdersScreen(),
+                        ),
+                      );
                     },
                   ),
                   _buildAdminButton(
@@ -111,7 +118,9 @@ class _AdminHomeState extends State<AdminHome> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => SignIn()), 
+                        MaterialPageRoute(
+                          builder: (context) => const AdminSignin(),
+                        ),
                       );
                     },
                     color: Colors.red,

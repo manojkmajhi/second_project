@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:second_project/admin/update_product.dart';
 import 'package:second_project/data/local/db_helper.dart';
 
 class ViewProduct extends StatefulWidget {
@@ -46,7 +47,7 @@ class _ViewProductState extends State<ViewProduct> {
 
   Future<void> deleteProduct(int id) async {
     await DBHelper.instance.deleteProductById(id);
-    fetchProducts(); // refresh list after deletion
+    fetchProducts();
   }
 
   void confirmDelete(BuildContext context, int id) {
@@ -75,15 +76,33 @@ class _ViewProductState extends State<ViewProduct> {
     );
   }
 
+  void navigateToEditProduct(Map<String, dynamic> product) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => UpdateProduct(product: product)),
+    );
+
+    if (result == true) {
+      fetchProducts();
+    }
+  }
+
+  String _shortenDescription(String text) {
+    final words = text.trim().split(RegExp(r'\s+'));
+    if (words.length <= 2) return text;
+    return words.take(2).join(' ') + '...';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 235, 235, 235),
         title: const Text(
           'View Products',
           style: TextStyle(color: Colors.black),
         ),
-        backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
         elevation: 1,
       ),
@@ -119,6 +138,10 @@ class _ViewProductState extends State<ViewProduct> {
                       fetchProducts();
                     },
                     selectedColor: Colors.black,
+                    backgroundColor: Colors.grey.shade200,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : Colors.black,
                     ),
@@ -137,19 +160,27 @@ class _ViewProductState extends State<ViewProduct> {
                       itemBuilder: (context, index) {
                         final product = productList[index];
                         return Card(
+                          color: const Color.fromARGB(255, 234, 233, 233),
                           margin: const EdgeInsets.symmetric(
                             horizontal: 10,
                             vertical: 5,
                           ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 2,
                           child: ListTile(
                             leading:
                                 product['image_path'] != null &&
                                         File(product['image_path']).existsSync()
-                                    ? Image.file(
-                                      File(product['image_path']),
-                                      width: 50,
-                                      height: 50,
-                                      fit: BoxFit.cover,
+                                    ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.file(
+                                        File(product['image_path']),
+                                        width: 50,
+                                        height: 50,
+                                        fit: BoxFit.cover,
+                                      ),
                                     )
                                     : const Icon(Icons.image_not_supported),
                             title: Text(product['product_name'] ?? ''),
@@ -161,13 +192,32 @@ class _ViewProductState extends State<ViewProduct> {
                                 Text(
                                   "Category: ${product['category'] ?? 'N/A'}",
                                 ),
-                                Text(product['details'] ?? ''),
+                                Text(
+                                  _shortenDescription(product['details'] ?? ''),
+                                ),
                               ],
                             ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed:
-                                  () => confirmDelete(context, product['id']),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.edit,
+                                    color: Colors.blueAccent,
+                                  ),
+                                  onPressed:
+                                      () => navigateToEditProduct(product),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.redAccent,
+                                  ),
+                                  onPressed:
+                                      () =>
+                                          confirmDelete(context, product['id']),
+                                ),
+                              ],
                             ),
                           ),
                         );

@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:second_project/pages/category_products.dart';
 import 'package:second_project/pages/product_detail.dart';
+import 'package:second_project/pages/search.dart';
 import 'package:second_project/widget/support_widget.dart';
+import 'package:second_project/data/local/db_helper.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -14,8 +17,8 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   List<String> categories = ["All", "Daily Use", "Electrical", "Agricultural"];
-
   List<Map<String, dynamic>> products = [];
+  TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
@@ -39,29 +42,69 @@ class _HomeState extends State<Home> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// Header
+            /// Header with real-time username from Firestore
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Hi, User", style: AppWidget.boldTextFieldStyle()),
-                    Text(
-                      "Welcome to ToolKit",
-                      style: AppWidget.lightTextFieldStyle(),
-                    ),
-                  ],
+                StreamBuilder<DocumentSnapshot>(
+                  stream:
+                      FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(FirebaseAuth.instance.currentUser?.uid)
+                          .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Hi, ...",
+                            style: AppWidget.boldTextFieldStyle(),
+                          ),
+                          Text(
+                            "Welcome to ToolKit",
+                            style: AppWidget.lightTextFieldStyle(),
+                          ),
+                        ],
+                      );
+                    }
+
+                    if (snapshot.hasError ||
+                        !snapshot.hasData ||
+                        !snapshot.data!.exists) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Hi, User",
+                            style: AppWidget.boldTextFieldStyle(),
+                          ),
+                          Text(
+                            "Welcome to ToolKit",
+                            style: AppWidget.lightTextFieldStyle(),
+                          ),
+                        ],
+                      );
+                    }
+
+                    final data = snapshot.data!.data() as Map<String, dynamic>;
+                    final name = data['name'] ?? 'User';
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Hi, $name",
+                          style: AppWidget.boldTextFieldStyle(),
+                        ),
+                        Text(
+                          "Welcome to ToolKit",
+                          style: AppWidget.lightTextFieldStyle(),
+                        ),
+                      ],
+                    );
+                  },
                 ),
-                // ClipRRect(
-                //   borderRadius: BorderRadius.circular(30.0),
-                //   child: Image.asset(
-                //     "assets/logo/user.png",
-                //     height: 50,
-                //     width: 50,
-                //     fit: BoxFit.cover,
-                //   ),
-                // ),
               ],
             ),
 
@@ -69,17 +112,60 @@ class _HomeState extends State<Home> {
 
             /// Search
             Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(20.0),
+                borderRadius: BorderRadius.circular(10.0),
+                border: Border.all(color: Colors.black),
               ),
-              child: TextField(
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  hintText: "Search your tools",
-                  hintStyle: AppWidget.lightTextFieldStyle(),
-                  prefixIcon: const Icon(Icons.search, color: Colors.black),
-                ),
+              child: Row(
+                children: [
+                  const Icon(Icons.search, color: Colors.black),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: searchController,
+                      decoration: const InputDecoration(
+                        hintText: "Search your tools",
+                        border: InputBorder.none,
+                      ),
+                      onSubmitted: (query) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => SearchPage(initialQuery: query),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (searchController.text.trim().isNotEmpty) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => SearchPage(
+                                  initialQuery: searchController.text,
+                                ),
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      "Search",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
               ),
             ),
 
@@ -93,7 +179,6 @@ class _HomeState extends State<Home> {
               ],
             ),
             const SizedBox(height: 20.0),
-
             SizedBox(
               height: 50,
               child: ListView.builder(
@@ -115,7 +200,7 @@ class _HomeState extends State<Home> {
               ],
             ),
 
-            /// Products Displayed
+            /// Product List
             Expanded(
               child:
                   products.isEmpty
@@ -155,9 +240,7 @@ class _HomeState extends State<Home> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => ProductDetail(product: product), // ✅ Fixed
-          ),
+          MaterialPageRoute(builder: (_) => ProductDetail(product: product)),
         );
       },
       child: Container(

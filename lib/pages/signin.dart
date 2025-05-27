@@ -1,3 +1,4 @@
+// lib/pages/signin.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:second_project/admin/admin_signin.dart';
@@ -5,8 +6,8 @@ import 'package:second_project/data/local/DatabaseListPage.dart';
 import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/pages/bottomnav.dart';
 import 'package:second_project/pages/signup.dart';
+import 'package:second_project/database/shared_preferences.dart';
 import 'package:second_project/widget/support_widget.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class SignIn extends StatefulWidget {
@@ -22,6 +23,25 @@ class _SignInState extends State<SignIn> {
   final passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  final helper = SharedPreferenceHelper(); // Instantiate your SharedPreferenceHelper
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberMeData(); // Load saved email and checkbox state on init
+  }
+
+  Future<void> _loadRememberMeData() async {
+    final savedEmail = await helper.getRememberMeEmail();
+    final savedRememberMeState = await helper.getRememberMeCheckboxState();
+
+    setState(() {
+      if (savedEmail != null && savedRememberMeState) {
+        emailController.text = savedEmail;
+        _rememberMe = savedRememberMeState;
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -50,58 +70,86 @@ class _SignInState extends State<SignIn> {
           final user = userCredential.user;
           if (user != null && user.emailVerified) {
             final db = await DBHelper.instance.getDB();
-            final prefs = await SharedPreferences.getInstance();
 
+            // Check if user exists in local DB or insert
             final result = await db.query(
               "users",
               where: "email = ?",
               whereArgs: [user.email],
             );
 
-            int userId;
+            int? userId;
             if (result.isEmpty) {
               userId = await db.insert("users", {
                 'name': user.displayName ?? 'User',
                 'email': user.email,
-                'password': password,
+                'password': password, // Consider hashing this if local storage is vital
                 'image': '',
               });
             } else {
-              userId = result.first['id'] as int;
+              userId = result.first['id'] as int?;
+              // Optionally update other user details in local DB if needed
             }
 
-            await prefs.setInt(
-              'userId',
-              userId,
-            ); // 🔥 FIXED: Save with correct key
+            if (userId != null) {
+              await helper.saveUserId(userId.toString()); // Save the user ID
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: Colors.green,
-                content: Text('Logged In Successfully'),
-              ),
-            );
+              // --- Handle 'Remember Me' preference ---
+              if (_rememberMe) {
+                await helper.saveRememberMeEmail(email);
+                await helper.saveRememberMeCheckboxState(true);
+              } else {
+                await helper.clearRememberMeData(); // Clear if unchecked
+              }
+              // --- End 'Remember Me' handling ---
 
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const BottomNav()),
-            );
+              debugPrint("✅ User logged in with local DB ID: $userId and Firebase UID: ${user.uid}");
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: Colors.green,
+                    content: Text('Logged In Successfully'),
+                  ),
+                );
+
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BottomNav()),
+                );
+              }
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: Colors.red,
+                    content: Text('Error saving user ID locally.'),
+                  ),
+                );
+              }
+              await FirebaseAuth.instance.signOut();
+            }
           } else {
-            await FirebaseAuth.instance.signOut();
+            await FirebaseAuth.instance.signOut(); // Sign out unverified user
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: Colors.orange,
+                  content: Text('Please verify your email before logging in.'),
+                ),
+              );
+            }
+          }
+        } on FirebaseAuthException catch (error) {
+          if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: Colors.orange,
-                content: Text('Please verify your email before logging in.'),
+              SnackBar(
+                backgroundColor: Colors.red,
+                content: Text(
+                    error.message ?? 'Invalid credentials or account does not exist.'),
               ),
             );
           }
-        } on FirebaseAuthException catch (_) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              backgroundColor: Colors.red,
-              content: Text('Invalid credentials or account does not exist.'),
-            ),
-          );
         }
       } else {
         await offlineLogin(email, password);
@@ -111,8 +159,9 @@ class _SignInState extends State<SignIn> {
 
   Future<void> offlineLogin(String email, String password) async {
     final db = await DBHelper.instance.getDB();
-    final prefs = await SharedPreferences.getInstance();
 
+    // WARNING: Storing and comparing plain text passwords in local DB is not secure.
+    // Consider hashing passwords before storing them, and then comparing hashes.
     final result = await db.query(
       "users",
       where: "email = ? AND password = ?",
@@ -120,27 +169,51 @@ class _SignInState extends State<SignIn> {
     );
 
     if (result.isNotEmpty) {
-      int userId = result.first['id'] as int;
-      await prefs.setInt('userId', userId); // 🔥 FIXED: Save with correct key
+      int? userId = result.first['id'] as int?;
+      if (userId != null) {
+        await helper.saveUserId(userId.toString()); // Save the user ID
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Colors.green,
-          content: Text('Logged In (Offline Mode)'),
-        ),
-      );
+        // --- Handle 'Remember Me' preference for offline login ---
+        if (_rememberMe) {
+          await helper.saveRememberMeEmail(email);
+          await helper.saveRememberMeCheckboxState(true);
+        } else {
+          await helper.clearRememberMeData(); // Clear if unchecked
+        }
+        // --- End 'Remember Me' handling ---
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomNav()),
-      );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.green,
+              content: Text('Logged In (Offline Mode)'),
+            ),
+          );
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const BottomNav()),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.red,
+              content: Text('Error retrieving local user ID.'),
+            ),
+          );
+        }
+      }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Colors.red,
-          content: Text('Login failed. Check email and password.'),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text('Login failed. Check email and password.'),
+          ),
+        );
+      }
     }
   }
 
@@ -170,12 +243,14 @@ class _SignInState extends State<SignIn> {
                 final email = resetEmailController.text.trim();
 
                 if (email.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: Colors.red,
-                      content: Text('Please enter an email.'),
-                    ),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        backgroundColor: Colors.red,
+                        content: Text('Please enter an email.'),
+                      ),
+                    );
+                  }
                   return;
                 }
 
@@ -184,23 +259,27 @@ class _SignInState extends State<SignIn> {
                     email: email,
                   );
 
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: Colors.green,
-                      content: Text(
-                        'Password reset email sent. Check your inbox.',
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        backgroundColor: Colors.green,
+                        content: Text(
+                          'Password reset email sent. Check your inbox.',
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  }
                 } on FirebaseAuthException catch (e) {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: Colors.red,
-                      content: Text(e.message ?? 'Something went wrong.'),
-                    ),
-                  );
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: Colors.red,
+                        content: Text(e.message ?? 'Something went wrong.'),
+                      ),
+                    );
+                  }
                 }
               },
               child: const Text("Send Reset Link"),
@@ -418,7 +497,6 @@ class _SignInState extends State<SignIn> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,

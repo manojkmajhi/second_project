@@ -21,6 +21,7 @@ class _SignupState extends State<Signup> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+  final imageController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   bool _obscurePassword = true;
@@ -82,8 +83,9 @@ class _SignupState extends State<Signup> {
           'name': nameController.text.trim(),
           'email': emailController.text.trim(),
           'password': passwordController.text.trim(),
+          'image': imageController.text.trim(),
         };
-        final userId = await db.insert("users", userMap);
+        final userId = await db.insert("users", userMap); 
         debugPrint("🆕 User inserted and ID saved to SharedPreferences: $userId");
 
         final prefs = await SharedPreferences.getInstance();

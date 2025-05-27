@@ -45,9 +45,9 @@ class _UserDetailsPageState extends State<UserDetailsPage> {
       );
     } catch (e) {
       debugPrint('Error deleting user: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete user: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete user: $e')));
     }
   }
 
@@ -55,55 +55,66 @@ class _UserDetailsPageState extends State<UserDetailsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Registered Users')),
-      body: users.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: users.length,
-              itemBuilder: (context, index) {
-                final user = users[index];
-                final String? imagePath = user['image_path'];
-                final File imageFile = File('$docPath/$imagePath');
+      body:
+          users.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                itemCount: users.length,
+                itemBuilder: (context, index) {
+                  final user = users[index];
+                  final String? imagePath = user['image_path'];
+                  final File imageFile = File('$docPath/$imagePath');
 
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: (imagePath != null && imageFile.existsSync())
-                          ? FileImage(imageFile)
-                          : const AssetImage('assets/images/user.png') as ImageProvider,
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
                     ),
-                    title: Text(user['name'] ?? ''),
-                    subtitle: Text(user['email'] ?? ''),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text("Delete User"),
-                            content: const Text("Are you sure you want to delete this user?"),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text("Cancel"),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(ctx);
-                                  deleteUser(user['id']);
-                                },
-                                child: const Text("Delete", style: TextStyle(color: Colors.red)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage:
+                            (imagePath != null && imageFile.existsSync())
+                                ? FileImage(imageFile)
+                                : const AssetImage('assets/images/user.png')
+                                    as ImageProvider,
+                      ),
+                      title: Text(user['name'] ?? ''),
+                      subtitle: Text(user['email'] ?? ''),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder:
+                                (ctx) => AlertDialog(
+                                  title: const Text("Delete User"),
+                                  content: const Text(
+                                    "Are you sure you want to delete this user?",
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx),
+                                      child: const Text("Cancel"),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.pop(ctx);
+                                        deleteUser(user['id']);
+                                      },
+                                      child: const Text(
+                                        "Delete",
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
     );
   }
 }
-    

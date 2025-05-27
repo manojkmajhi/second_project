@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:khalti_flutter/khalti_flutter.dart';
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server/gmail.dart';
 import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/database/shared_preferences.dart';
+
 import 'package:second_project/pages/bottomnav.dart';
-import 'package:second_project/pages/select_payment_method_page.dart';
+import 'package:second_project/pages/home.dart';
 
 class AddAddressInfo extends StatefulWidget {
   const AddAddressInfo({super.key});
@@ -257,7 +257,7 @@ Your Toolkit Nepal
                           Navigator.pop(context);
                           _processOrderAndSendEmail();
                         } else {
-                          setState(() {});
+                          setState(() {}); // show validation
                         }
                       },
                       child: const Text('Proceed'),
@@ -278,41 +278,6 @@ Your Toolkit Nepal
         setState(() {
           selectedPaymentMethod = value!;
         });
-      },
-    );
-  }
-
-  void _startKhaltiPayment() {
-    final totalAmount = (getTotalPrice() * 100).toInt(); // Khalti uses paisa
-
-    KhaltiScope.of(context).pay(
-      config: PaymentConfig(
-        amount: totalAmount,
-        productIdentity: 'p1',
-        productName: 'Order Payment',
-        mobile: phoneController.text,
-      ),
-      preferences: [PaymentPreference.khalti],
-      onSuccess: (success) {
-        // Payment successful, process order
-        _submitForm(); // Show dialog
-        _processOrderAndSendEmail();
-      },
-      onFailure: (failure) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Payment Failed"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      },
-      onCancel: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Payment Cancelled"),
-            backgroundColor: Colors.orange,
-          ),
-        );
       },
     );
   }
@@ -398,36 +363,7 @@ Your Toolkit Nepal
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () async {
-                        if (_formKey.currentState!.validate()) {
-                          // Navigate to payment screen
-                          final selectedMethod = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => SelectPaymentMethodPage(
-                                    selectedMethod: selectedPaymentMethod,
-                                  ),
-                            ),
-                          );
-
-                          if (selectedMethod != null) {
-                            setState(() {
-                              selectedPaymentMethod = selectedMethod;
-                            });
-
-                            if (selectedMethod == 'Cash on Delivery') {
-                              // Process order and send email
-                              _submitForm();
-                              _processOrderAndSendEmail();
-                            } else if (selectedMethod == 'Khalti') {
-                              _startKhaltiPayment();
-                            }
-                          } else {
-                            setState(() {});
-                          }
-                        }
-                      },
+                      onPressed: _submitForm,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         backgroundColor: Colors.black,
@@ -436,7 +372,29 @@ Your Toolkit Nepal
                         ),
                       ),
                       child: const Text(
-                        "Continue to Payment",
+                        "Submit",
+                        style: TextStyle(fontSize: 20, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const Home()),
+                          ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        "Cancel",
                         style: TextStyle(fontSize: 20, color: Colors.white),
                       ),
                     ),

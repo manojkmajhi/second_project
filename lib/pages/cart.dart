@@ -198,7 +198,7 @@ class _CartPageState extends State<CartPage> {
                                       ),
                                     ),
                                     Text(
-                                      "₹${price.toStringAsFixed(2)}",
+                                      "Nrs.${price.toStringAsFixed(2)}",
                                       style: const TextStyle(
                                         color: Colors.grey,
                                       ),
