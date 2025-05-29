@@ -617,7 +617,7 @@ packages:
     source: hosted
     version: "2.0.1"
   khalti:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: khalti
       sha256: "4b84443a12e84c8262c225894a0f25297b092cecd3ac05cb0897eeb227eff5ea"

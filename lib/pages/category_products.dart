@@ -5,9 +5,9 @@ import 'package:second_project/pages/product_detail.dart';
 import 'package:second_project/widget/support_widget.dart';
 
 class CategoryProducts extends StatefulWidget {
-  final String category;
+  final String? category; // Changed to nullable to handle "All" case
 
-  const CategoryProducts({super.key, required this.category});
+  const CategoryProducts({super.key, this.category});
 
   @override
   State<CategoryProducts> createState() => _CategoryProductsState();
@@ -25,20 +25,26 @@ class _CategoryProductsState extends State<CategoryProducts> {
   Future<void> fetchCategoryProducts() async {
     final allProducts = await DBHelper.instance.getAllProducts();
     setState(() {
-      filteredProducts =
-          allProducts
-              .where((product) => product['category'] == widget.category)
-              .toList();
+      if (widget.category == null || widget.category == "All") {
+        // Show all products if category is null or "All"
+        filteredProducts = allProducts;
+      } else {
+        // Filter by specific category
+        filteredProducts =
+            allProducts
+                .where((product) => product['category'] == widget.category)
+                .toList();
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(255, 241, 240, 240),
       appBar: AppBar(
-        title: Text(widget.category),
-        backgroundColor: Colors.white,
+        title: Text(widget.category ?? 'All Products'), // Handle null case
+        backgroundColor: const Color.fromARGB(255, 239, 237, 237),
         elevation: 0,
         foregroundColor: Colors.black,
       ),
@@ -46,31 +52,22 @@ class _CategoryProductsState extends State<CategoryProducts> {
         padding: const EdgeInsets.all(16.0),
         child:
             filteredProducts.isEmpty
-                ? const Center(child: Text("No products in this category"))
-                : ListView.builder(
-                  itemCount: (filteredProducts.length / 2).ceil(),
-                  itemBuilder: (context, rowIndex) {
-                    final index1 = rowIndex * 2;
-                    final index2 = index1 + 1;
-                    final product1 = filteredProducts[index1];
-                    final product2 =
-                        index2 < filteredProducts.length
-                            ? filteredProducts[index2]
-                            : null;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Row(
-                        children: [
-                          Expanded(child: productCard(context, product1)),
-                          const SizedBox(width: 16),
-                          if (product2 != null)
-                            Expanded(child: productCard(context, product2))
-                          else
-                            const Expanded(child: SizedBox()),
-                        ],
-                      ),
-                    );
+                ? const Center(
+                  child: Text(
+                    "No products available",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                )
+                : GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: filteredProducts.length,
+                  itemBuilder: (context, index) {
+                    return productCard(context, filteredProducts[index]);
                   },
                 ),
       ),
@@ -90,7 +87,6 @@ class _CategoryProductsState extends State<CategoryProducts> {
         );
       },
       child: Container(
-        padding: const EdgeInsets.all(12.0),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12.0),
@@ -105,50 +101,57 @@ class _CategoryProductsState extends State<CategoryProducts> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            imageExists
-                ? ClipRRect(
-                  borderRadius: BorderRadius.circular(8.0),
-                  child: Image.file(
-                    File(product['image_path']),
-                    height: 100,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12.0),
+                ),
+                child:
+                    imageExists
+                        ? Image.file(
+                          File(product['image_path']),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        )
+                        : Container(
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: Icon(
+                              Icons.image_not_supported,
+                              color: Colors.grey,
+                              size: 40,
+                            ),
+                          ),
+                        ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product['product_name'] ?? 'Unnamed Product',
+                    style: AppWidget.semiboldTextFieldStyle(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                )
-                : Container(
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.image_not_supported,
-                      color: Colors.white,
-                      size: 40,
+                  const SizedBox(height: 4),
+                  Text(
+                    "Nrs. ${product['product_price']}",
+                    style: const TextStyle(
+                      color: Color.fromARGB(255, 213, 91, 91),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                product['product_name'] ?? '',
-                style: AppWidget.semiboldTextFieldStyle(),
-                textAlign: TextAlign.center,
+                  const SizedBox(height: 4),
+                  Text(
+                    product['category'] ?? 'Uncategorized',
+                    style: const TextStyle(color: Colors.black54, fontSize: 14),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Price: ₹${product['product_price']}",
-              style: const TextStyle(
-                color: Color.fromARGB(255, 213, 91, 91),
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              "Category: ${product['category'] ?? 'Unknown'}",
-              style: const TextStyle(color: Colors.black54),
             ),
           ],
         ),

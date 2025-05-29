@@ -19,7 +19,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Future<void> _fetchOrders() async {
-    final allOrders = await DBHelper.instance.getOrdersByLoggedInUser();
+    final allOrders = await DBHelper.instance.getAllOrders();
     setState(() {
       _orders =
           allOrders
@@ -40,6 +40,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
     await _fetchOrders();
   }
 
+  Future<void> _updateOrderStatus(int orderId, String newStatus) async {
+    await DBHelper.instance.updateOrderStatus(orderId, newStatus);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('✅ Order status updated to $newStatus')),
+    );
+    await _fetchOrders();
+  }
+
   Widget _buildStatusDropdown() {
     return DropdownButton<String>(
       value: _selectedStatus,
@@ -47,7 +55,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
       icon: const Icon(Icons.arrow_drop_down),
       items: const [
         DropdownMenuItem(value: 'Pending', child: Text('Pending')),
+        DropdownMenuItem(value: 'In Process', child: Text('In Process')),
         DropdownMenuItem(value: 'Completed', child: Text('Completed')),
+        DropdownMenuItem(value: 'Cancelled', child: Text('Cancelled')),
       ],
       onChanged: (value) {
         if (value != null) {
@@ -59,44 +69,167 @@ class _OrdersScreenState extends State<OrdersScreen> {
       },
     );
   }
- 
 
+  Widget _buildStatusUpdateDropdown(Map<String, dynamic> order) {
+    final List<String> statusOptions = [
+      'Pending',
+      'In Process',
+      'Completed',
+      'Cancelled',
+    ];
+    String currentStatus = statusOptions.firstWhere(
+      (status) =>
+          status.toLowerCase() ==
+          (order['status'] ?? 'Pending').toString().toLowerCase(),
+      orElse: () => 'Pending',
+    );
+
+    return DropdownButton<String>(
+      value: currentStatus,
+      icon: const Icon(Icons.arrow_drop_down, size: 20),
+      elevation: 4,
+      style: TextStyle(
+        color: _getStatusColor(currentStatus),
+        fontWeight: FontWeight.bold,
+      ),
+      items:
+          statusOptions
+              .map(
+                (String value) =>
+                    DropdownMenuItem<String>(value: value, child: Text(value)),
+              )
+              .toList(),
+      onChanged: (String? newValue) {
+        if (newValue != null && newValue != currentStatus) {
+          _updateOrderStatus(order['id'], newValue);
+        }
+      },
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return Colors.orange;
+      case 'in process':
+        return Colors.blue;
+      case 'completed':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.redAccent;
+      default:
+        return Colors.grey;
+    }
+  }
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        title: Text(
-          "Order ID: ${order['id']}",
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("User ID: ${order['user_id']}"),
-            Text("Total Price: Rs ${order['total_price']}"),
-            Text("Date: ${order['order_date']}"),
-            Text("Status: ${order['status'] ?? 'Pending'}"),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Order #${order['id']}",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _deleteOrder(order['id']),
+                ),
+              ],
+            ),
+            const Divider(),
+            _buildOrderDetailRow("Customer:", order['customer_name']),
+            _buildOrderDetailRow("Email:", order['customer_email']),
+            _buildOrderDetailRow("Phone:", order['customer_phone']),
+            const SizedBox(height: 8),
+            _buildOrderDetailRow("User ID:", order['user_id'].toString()),
+            _buildOrderDetailRow("Total:", "Rs ${order['total_price']}"),
+            _buildOrderDetailRow("Payment:", order['payment_method']),
+            _buildOrderDetailRow("Date:", _formatDate(order['order_date'])),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Status: ${order['status'] ?? 'Pending'}",
+                  style: TextStyle(
+                    color: _getStatusColor(order['status'] ?? 'Pending'),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                _buildStatusUpdateDropdown(order),
+              ],
+            ),
+            if (order['delivery_address'] != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                "Delivery Address:",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
+              ),
+              Text(order['delivery_address']),
+            ],
           ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete, color: Colors.red),
-          onPressed: () => _deleteOrder(order['id']),
         ),
       ),
     );
+  }
+
+  Widget _buildOrderDetailRow(String label, String? value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value ?? 'Not available',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String? dateString) {
+    if (dateString == null) return 'Unknown date';
+    try {
+      final dateTime = DateTime.parse(dateString);
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateString;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(' All Orders'),
+        title: const Text('All Orders'),
         centerTitle: true,
-        backgroundColor: const Color.fromARGB(255, 235, 235, 235)  ,
+        backgroundColor: const Color.fromARGB(255, 235, 235, 235),
       ),
       body: SafeArea(
         child: Column(

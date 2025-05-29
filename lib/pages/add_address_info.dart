@@ -34,6 +34,15 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
     }
   }
 
+  @override
+  void dispose() {
+    nameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    addressController.dispose();
+    super.dispose();
+  }
+
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
       _showPaymentDialog();
@@ -44,17 +53,16 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder:
-          (_) => const AlertDialog(
-            backgroundColor: Colors.white,
-            content: Row(
-              children: [
-                CircularProgressIndicator(color: Colors.black),
-                SizedBox(width: 16),
-                Text("Processing...", style: TextStyle(color: Colors.black)),
-              ],
-            ),
-          ),
+      builder: (_) => const AlertDialog(
+        backgroundColor: Colors.white,
+        content: Row(
+          children: [
+            CircularProgressIndicator(color: Colors.black),
+            SizedBox(width: 16),
+            Text("Processing...", style: TextStyle(color: Colors.black)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -62,47 +70,45 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder:
-          (_) => AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text(
-              'Order Confirmed',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black),
-            ),
-            content: const Text(
-              'Your order has been placed successfully and confirmation email sent!',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const BottomNav(initialIndex: 0),
-                    ),
-                    (route) => false,
-                  );
-                },
-                child: const Text(
-                  'Go To Home',
-                  style: TextStyle(color: Colors.green),
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Order Confirmed',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.black),
+        ),
+        content: const Text(
+          'Your order has been placed successfully and confirmation email sent!',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.black),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const BottomNav(initialIndex: 0),
                 ),
-              ),
-            ],
+                (route) => false,
+              );
+            },
+            child: const Text(
+              'Go To Home',
+              style: TextStyle(color: Colors.green),
+            ),
           ),
+        ],
+      ),
     );
   }
 
   double getTotalPrice() {
     return products.fold(0, (sum, product) {
-      double price =
-          double.tryParse(product['product_price'].toString()) ?? 0.0;
+      double price = double.tryParse(product['product_price'].toString()) ?? 0.0;
       int qty = product['quantity'] ?? 1;
       return sum + (price * qty);
     });
@@ -125,7 +131,7 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
     return details;
   }
 
-  Future<void> _processOrderAndSendEmail() async {
+  Future<void> _processOrder() async {
     _showLoaderDialog();
 
     try {
@@ -135,37 +141,53 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
 
       final totalPrice = getTotalPrice();
       final productsJson = jsonEncode(products);
+      
+      // Insert order into database
       await DBHelper.instance.insertOrder(
         userId: userId,
         totalPrice: totalPrice,
         productsJson: productsJson,
         deliveryAddress: addressController.text.trim(),
+        paymentMethod: selectedPaymentMethod ?? 'Unknown',
+        customerName: nameController.text.trim(),
+        customerEmail: emailController.text.trim(),
+        customerPhone: phoneController.text.trim(),
       );
 
+      // Clear cart after successful order
+      await DBHelper.instance.clearCart();
+
+      // Send confirmation email
       await _sendEmail();
+
+      if (mounted) {
+        Navigator.pop(context); // Close loader
+        _showConfirmationDialog();
+      }
     } catch (e) {
-      Navigator.pop(context); // close loader
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Order failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        Navigator.pop(context); // Close loader
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Order failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   Future<void> _sendEmail() async {
-    String username = 'manojmajhi77777@gmail.com';
-    String password = 'lmof ckza lblt caft';
+    const username = 'manojmajhi77777@gmail.com';
+    const password = 'lmof ckza lblt caft';
 
     final smtpServer = gmail(username, password);
 
-    final message =
-        Message()
-          ..from = Address(username, 'Your Store')
-          ..recipients.add(emailController.text.trim())
-          ..subject = 'Order Confirmation'
-          ..text = '''
+    final message = Message()
+      ..from = Address(username, 'Your Store')
+      ..recipients.add(emailController.text.trim())
+      ..subject = 'Order Confirmation'
+      ..text = '''
 Hello ${nameController.text},
 
 Thank you for your order!
@@ -189,13 +211,8 @@ Your Toolkit Nepal
 
     try {
       await send(message, smtpServer);
-      if (mounted) {
-        Navigator.pop(context);
-        _showConfirmationDialog();
-      }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send email: $e'),
@@ -209,62 +226,64 @@ Your Toolkit Nepal
   void _showPaymentDialog() {
     showDialog(
       context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setState) => AlertDialog(
-                  backgroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: const Text(
-                    'Payment Method',
-                    style: TextStyle(color: Colors.black),
-                  ),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _paymentOptionTile(setState, 'Cash on Delivery'),
-                      _paymentOptionTile(setState, 'Esewa'),
-                      if (selectedPaymentMethod == null)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Text(
-                            'Please select a payment method',
-                            style: TextStyle(color: Colors.red, fontSize: 13),
-                          ),
-                        ),
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: Colors.black),
-                      ),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: () {
-                        if (selectedPaymentMethod != null) {
-                          Navigator.pop(context);
-                          _processOrderAndSendEmail();
-                        } else {
-                          setState(() {});
-                        }
-                      },
-                      child: const Text('Proceed'),
-                    ),
-                  ],
-                ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
+          title: const Text(
+            'Payment Method',
+            style: TextStyle(color: Colors.black),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _paymentOptionTile(setState, 'Cash on Delivery'),
+              _paymentOptionTile(setState, 'Khalti'),
+              if (selectedPaymentMethod == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Please select a payment method',
+                    style: TextStyle(color: Colors.red, fontSize: 13),
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.black),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                if (selectedPaymentMethod != null) {
+                  Navigator.pop(context);
+                  if (selectedPaymentMethod == 'Khalti') {
+                    _startKhaltiPayment();
+                  } else {
+                    _processOrder();
+                  }
+                } else {
+                  setState(() {});
+                }
+              },
+              child: const Text('Proceed'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -295,8 +314,7 @@ Your Toolkit Nepal
       preferences: [PaymentPreference.khalti],
       onSuccess: (success) {
         // Payment successful, process order
-        _submitForm(); // Show dialog
-        _processOrderAndSendEmail();
+        _processOrder();
       },
       onFailure: (failure) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -353,8 +371,7 @@ Your Toolkit Nepal
                 Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
-                  if (value == null || value.isEmpty)
-                    return 'Email is required';
+                  if (value == null || value.isEmpty) return 'Email is required';
                   if (!RegExp(
                     r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
                   ).hasMatch(value)) {
@@ -373,8 +390,9 @@ Your Toolkit Nepal
                 Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
                 validator: (value) {
-                  if (value == null || value.isEmpty)
+                  if (value == null || value.isEmpty) {
                     return 'Phone Number is required';
+                  }
                   if (!RegExp(r"^[0-9]{10}$").hasMatch(value)) {
                     return 'Phone Number must be exactly 10 digits';
                   }
@@ -387,61 +405,53 @@ Your Toolkit Nepal
                 "Full Address",
                 Icons.home_outlined,
                 validator: (value) {
-                  if (value == null || value.isEmpty)
+                  if (value == null || value.isEmpty) {
                     return 'Full Address is required';
+                  }
                   return null;
                 },
               ),
               const SizedBox(height: 30),
-              Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        if (_formKey.currentState!.validate()) {
-                          // Navigate to payment screen
-                          final selectedMethod = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => SelectPaymentMethodPage(
-                                    selectedMethod: selectedPaymentMethod,
-                                  ),
-                            ),
-                          );
-
-                          if (selectedMethod != null) {
-                            setState(() {
-                              selectedPaymentMethod = selectedMethod;
-                            });
-
-                            if (selectedMethod == 'Cash on Delivery') {
-                              // Process order and send email
-                              _submitForm();
-                              _processOrderAndSendEmail();
-                            } else if (selectedMethod == 'Khalti') {
-                              _startKhaltiPayment();
-                            }
-                          } else {
-                            setState(() {});
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        backgroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (_formKey.currentState!.validate()) {
+                      final selectedMethod = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SelectPaymentMethodPage(
+                            selectedMethod: selectedPaymentMethod,
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        "Continue to Payment",
-                        style: TextStyle(fontSize: 20, color: Colors.white),
-                      ),
+                      );
+
+                      if (selectedMethod != null) {
+                        setState(() {
+                          selectedPaymentMethod = selectedMethod;
+                        });
+
+                        if (selectedMethod == 'Cash on Delivery') {
+                          _processOrder();
+                          
+                        } else if (selectedMethod == 'Khalti') {
+                          _startKhaltiPayment();
+                        }
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                ],
+                  child: const Text(
+                    "Continue to Payment",
+                    style: TextStyle(fontSize: 20, color: Colors.white),
+                  ),
+                ),
               ),
             ],
           ),

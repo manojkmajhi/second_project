@@ -47,11 +47,10 @@ class _HomeState extends State<Home> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 StreamBuilder<DocumentSnapshot>(
-                  stream:
-                      FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(FirebaseAuth.instance.currentUser?.uid)
-                          .snapshots(),
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(FirebaseAuth.instance.currentUser?.uid)
+                      .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return Column(
@@ -133,8 +132,7 @@ class _HomeState extends State<Home> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder:
-                                (context) => SearchPage(initialQuery: query),
+                            builder: (context) => SearchPage(initialQuery: query),
                           ),
                         );
                       },
@@ -146,10 +144,8 @@ class _HomeState extends State<Home> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder:
-                                (context) => SearchPage(
-                                  initialQuery: searchController.text,
-                                ),
+                            builder: (context) =>
+                                SearchPage(initialQuery: searchController.text),
                           ),
                         );
                       }
@@ -202,32 +198,29 @@ class _HomeState extends State<Home> {
 
             /// Product List
             Expanded(
-              child:
-                  products.isEmpty
-                      ? const Center(child: Text("No products available"))
-                      : ListView.builder(
-                        itemCount: (products.length / 2).ceil(),
-                        itemBuilder: (context, rowIndex) {
-                          final index1 = rowIndex * 2;
-                          final index2 = index1 + 1;
-                          final product1 = products[index1];
-                          final product2 =
-                              index2 < products.length
-                                  ? products[index2]
-                                  : null;
+              child: products.isEmpty
+                  ? const Center(child: Text("No products available"))
+                  : ListView.builder(
+                      itemCount: (products.length / 2).ceil(),
+                      itemBuilder: (context, rowIndex) {
+                        final index1 = rowIndex * 2;
+                        final index2 = index1 + 1;
+                        final product1 = products[index1];
+                        final product2 =
+                            index2 < products.length ? products[index2] : null;
 
-                          return Row(
-                            children: [
-                              Expanded(child: productCard(context, product1)),
-                              const SizedBox(width: 16),
-                              if (product2 != null)
-                                Expanded(child: productCard(context, product2))
-                              else
-                                const Expanded(child: SizedBox()),
-                            ],
-                          );
-                        },
-                      ),
+                        return Row(
+                          children: [
+                            Expanded(child: productCard(context, product1)),
+                            const SizedBox(width: 16),
+                            if (product2 != null)
+                              Expanded(child: productCard(context, product2))
+                            else
+                              const Expanded(child: SizedBox()),
+                          ],
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -240,7 +233,8 @@ class _HomeState extends State<Home> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => ProductDetail(product: product)),
+          MaterialPageRoute(
+              builder: (_) => ProductDetail(product: product)),
         );
       },
       child: Container(
@@ -306,7 +300,9 @@ class CategoryButton extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => CategoryProducts(category: categoryName),
+            builder: (context) => CategoryProducts(
+              category: categoryName == "All" ? null : categoryName,
+            ),
           ),
         );
       },

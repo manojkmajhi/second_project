@@ -14,36 +14,48 @@ class CartPage extends StatefulWidget {
 class _CartPageState extends State<CartPage> {
   List<Map<String, dynamic>> cartProducts = [];
   List<bool> selectedItems = [];
+  int? userId;
 
   @override
   void initState() {
     super.initState();
-    loadCart();
+    loadUserAndCart();
   }
 
-  Future<void> loadCart() async {
+  Future<void> loadUserAndCart() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? cartJson = prefs.getString('cart_products');
-    debugPrint("📦 Loaded cart: $cartJson");
+    userId = prefs.getInt('userId');
+    debugPrint("🔐 Loaded userId: $userId");
 
-    if (cartJson != null && cartJson.isNotEmpty) {
-      List<dynamic> decoded = jsonDecode(cartJson);
-      setState(() {
-        cartProducts =
-            decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-        selectedItems = List<bool>.filled(cartProducts.length, false);
-      });
+    if (userId != null) {
+      String? cartJson = prefs.getString('cart_products_$userId');
+      debugPrint("📦 Loaded cart for user $userId: $cartJson");
+
+      if (cartJson != null && cartJson.isNotEmpty) {
+        List<dynamic> decoded = jsonDecode(cartJson);
+        setState(() {
+          cartProducts =
+              decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+          selectedItems = List<bool>.filled(cartProducts.length, false);
+        });
+      } else {
+        debugPrint("🧺 Cart is empty.");
+      }
     } else {
-      debugPrint("🧺 Cart is empty.");
+      debugPrint("❌ No userId found. Cart not loaded.");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please log in to view your cart.")),
+      );
     }
   }
 
   Future<void> saveCart() async {
+    if (userId == null) return;
     SharedPreferences prefs = await SharedPreferences.getInstance();
     if (cartProducts.isEmpty) {
-      await prefs.remove('cart_products');
+      await prefs.remove('cart_products_$userId');
     } else {
-      await prefs.setString('cart_products', jsonEncode(cartProducts));
+      await prefs.setString('cart_products_$userId', jsonEncode(cartProducts));
     }
   }
 

@@ -28,113 +28,137 @@ class DBHelper {
     String path = join(documentsDirectory.path, dbName);
     return await openDatabase(
       path,
-      version: 6, // Current database version
+      version: 7, // Incremented version number
       onCreate: (Database db, int version) async {
-        await db.execute("PRAGMA foreign_keys = ON;");
-        await db.execute('''
-          CREATE TABLE $userTableName (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            password TEXT NOT NULL,
-            image TEXT
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE $productTableName (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_name TEXT NOT NULL,
-            product_price REAL NOT NULL,
-            product_quantity INTEGER NOT NULL,
-            details TEXT,
-            category TEXT,
-            image_path TEXT,
-            search_count INTEGER DEFAULT 0
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE $cartTableName (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            quantity INTEGER NOT NULL,
-            FOREIGN KEY (product_id) REFERENCES $productTableName(id) ON DELETE CASCADE
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE $orderTableName (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            total_price REAL NOT NULL,
-            order_date TEXT,
-            products TEXT, -- This column is created here for new databases
-            delivery_address TEXT,
-            status TEXT DEFAULT 'pending',
-            FOREIGN KEY (user_id) REFERENCES $userTableName(id) ON DELETE CASCADE
-          )
-        ''');
-        
-        await db.execute('''
-          CREATE TABLE $reviewTableName (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            reviewer TEXT NOT NULL,
-            comment TEXT,
-            rating INTEGER,
-            timestamp TEXT,
-            FOREIGN KEY (product_id) REFERENCES $productTableName(id) ON DELETE CASCADE
-          )
-        ''');
-        await db.execute("CREATE INDEX idx_email ON $userTableName(email);");
-        await db.execute(
-          "CREATE INDEX idx_user_id ON $orderTableName(user_id);",
-        );
-        await db.execute(
-          "CREATE INDEX idx_product_id_cart ON $cartTableName(product_id);",
-        );
-       
-        await db.execute(
-          "CREATE INDEX idx_product_id_reviews ON $reviewTableName(product_id);",
-        );
+        await _createDatabase(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        // --- Migration from version 1 to 2 (if any) ---
-        // if (oldVersion < 2) {
-        //   // Example: Add a column for version 2
-        //   // await db.execute("ALTER TABLE some_table ADD COLUMN new_column TEXT");
-        // }
-
-        // --- Migration from version 2 to 3 ---
-        if (oldVersion < 3) {
-          // Add search_count column to product table
-          await db.execute(
-            "ALTER TABLE $productTableName ADD COLUMN search_count INTEGER DEFAULT 0",
-          );
-        }
-
-        // --- Migration from version 3 to 4 ---
-        // The 'products' column was added in your onCreate for version 6.
-        // If it was *not* in onCreate for older versions (e.g., version 3),
-        // then this is where it should be added.
-        // Assuming 'products' was missing in version 3 and added in version 4.
-        if (oldVersion < 4) {
-          await db.execute(
-            "ALTER TABLE $orderTableName ADD COLUMN products TEXT",
-          );
-          await db.execute(
-            "ALTER TABLE $orderTableName ADD COLUMN status TEXT DEFAULT 'pending'",
-          );
-        }
-
-        // --- Migration from version 4 to 5 ---
-        if (oldVersion < 5) {
-          await db.execute(
-            "ALTER TABLE $orderTableName ADD COLUMN delivery_address TEXT",
-          );
-        }
-
-      
+        await _migrateDatabase(db, oldVersion, newVersion);
       },
     );
+  }
+
+  Future<void> _createDatabase(Database db) async {
+    await db.execute("PRAGMA foreign_keys = ON;");
+    
+    // Create users table
+    await db.execute('''
+      CREATE TABLE $userTableName (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        image TEXT
+      )
+    ''');
+    
+    // Create products table
+    await db.execute('''
+      CREATE TABLE $productTableName (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_name TEXT NOT NULL,
+        product_price REAL NOT NULL,
+        product_quantity INTEGER NOT NULL,
+        details TEXT,
+        category TEXT,
+        image_path TEXT,
+        search_count INTEGER DEFAULT 0
+      )
+    ''');
+    
+    // Create cart table
+    await db.execute('''
+      CREATE TABLE $cartTableName (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        FOREIGN KEY (product_id) REFERENCES $productTableName(id) ON DELETE CASCADE
+      )
+    ''');
+    
+    // Create orders table with all columns
+    await db.execute('''
+      CREATE TABLE $orderTableName (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        total_price REAL NOT NULL,
+        order_date TEXT,
+        products TEXT,
+        delivery_address TEXT,
+        status TEXT DEFAULT 'pending',
+        payment_method TEXT,
+        customer_name TEXT,
+        customer_email TEXT,
+        customer_phone TEXT,
+        FOREIGN KEY (user_id) REFERENCES $userTableName(id) ON DELETE CASCADE
+      )
+    ''');
+    
+    // Create reviews table
+    await db.execute('''
+      CREATE TABLE $reviewTableName (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        reviewer TEXT NOT NULL,
+        comment TEXT,
+        rating INTEGER,
+        timestamp TEXT,
+        FOREIGN KEY (product_id) REFERENCES $productTableName(id) ON DELETE CASCADE
+      )
+    ''');
+    
+    // Create indexes
+    await db.execute("CREATE INDEX idx_email ON $userTableName(email);");
+    await db.execute("CREATE INDEX idx_user_id ON $orderTableName(user_id);");
+    await db.execute("CREATE INDEX idx_product_id_cart ON $cartTableName(product_id);");
+    await db.execute("CREATE INDEX idx_product_id_reviews ON $reviewTableName(product_id);");
+  }
+
+  Future<void> _migrateDatabase(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Initial migration if needed
+    }
+    
+    if (oldVersion < 3) {
+      // Add search_count column to product table
+      await db.execute(
+        "ALTER TABLE $productTableName ADD COLUMN search_count INTEGER DEFAULT 0",
+      );
+    }
+
+    if (oldVersion < 4) {
+      await db.execute(
+        "ALTER TABLE $orderTableName ADD COLUMN products TEXT",
+      );
+      await db.execute(
+        "ALTER TABLE $orderTableName ADD COLUMN status TEXT DEFAULT 'pending'",
+      );
+    }
+
+    if (oldVersion < 5) {
+      await db.execute(
+        "ALTER TABLE $orderTableName ADD COLUMN delivery_address TEXT",
+      );
+    }
+
+    if (oldVersion < 6) {
+      await db.execute(
+        "ALTER TABLE $orderTableName ADD COLUMN payment_method TEXT",
+      );
+      await db.execute(
+        "ALTER TABLE $orderTableName ADD COLUMN customer_name TEXT",
+      );
+      await db.execute(
+        "ALTER TABLE $orderTableName ADD COLUMN customer_email TEXT",
+      );
+      await db.execute(
+        "ALTER TABLE $orderTableName ADD COLUMN customer_phone TEXT",
+      );
+    }
+
+    if (oldVersion < 7) {
+      // Any future migrations would go here
+    }
   }
 
   // ==================== AUTH ====================
@@ -160,10 +184,8 @@ class DBHelper {
     return false;
   }
 
-  Future<void> logoutUser() async =>
-      await SharedPreferenceHelper().clearUserData();
-  Future<bool> isUserLoggedIn() async =>
-      await SharedPreferenceHelper().isUserLoggedIn();
+  Future<void> logoutUser() async => await SharedPreferenceHelper().clearUserData();
+  Future<bool> isUserLoggedIn() async => await SharedPreferenceHelper().isUserLoggedIn();
 
   Future<Map<String, dynamic>?> getLoggedInUser() async {
     final userIdStr = await SharedPreferenceHelper().getUserId();
@@ -175,7 +197,11 @@ class DBHelper {
 
   Future<Map<String, dynamic>?> getUserById(int id) async {
     final db = await getDB();
-    final result = await db.query(userTableName, where: 'id = ?', whereArgs: [id]);
+    final result = await db.query(
+      userTableName,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
     return result.isNotEmpty ? result.first : null;
   }
 
@@ -305,21 +331,29 @@ class DBHelper {
   );
 
   // ==================== ORDER ====================
-  Future<void> insertOrder({
+  Future<int> insertOrder({
     required int userId,
     required double totalPrice,
     required String productsJson,
     required String deliveryAddress,
+    required String paymentMethod,
+    required String customerName,
+    required String customerEmail,
+    required String customerPhone,
     String status = 'pending',
   }) async {
     final db = await getDB();
-    await db.insert(orderTableName, {
+    return await db.insert(orderTableName, {
       'user_id': userId,
       'total_price': totalPrice,
       'order_date': DateTime.now().toIso8601String(),
       'products': productsJson,
       'delivery_address': deliveryAddress,
       'status': status,
+      'payment_method': paymentMethod,
+      'customer_name': customerName,
+      'customer_email': customerEmail,
+      'customer_phone': customerPhone,
     });
   }
 
