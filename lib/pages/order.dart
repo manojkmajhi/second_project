@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:second_project/data/local/db_helper.dart';
 import 'package:intl/intl.dart';
+import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/pages/review_order_screen.dart';
 
 class Order extends StatefulWidget {
   const Order({super.key});
@@ -43,33 +44,9 @@ class _OrderState extends State<Order> {
     });
   }
 
-  Future<void> _deleteOrder(int orderId) async {
+  Future<void> _cancelOrder(int orderId) async {
     await DBHelper.instance.deleteOrderById(orderId);
     await _fetchOrders();
-  }
-
-  String _getStatusButtonLabel(dynamic status) {
-    final statusStr = status?.toString().toLowerCase() ?? 'pending';
-    switch (statusStr) {
-      case 'completed':
-        return 'Review';
-      case 'in process':
-        return 'On the Way';
-      default:
-        return '';
-    }
-  }
-
-  Color _getStatusButtonColor(dynamic status) {
-    final statusStr = status?.toString().toLowerCase() ?? 'pending';
-    switch (statusStr) {
-      case 'completed':
-        return Colors.green;
-      case 'in process':
-        return Colors.blue;
-      default:
-        return Colors.orange;
-    }
   }
 
   Widget _buildFilterButtons() {
@@ -100,6 +77,44 @@ class _OrderState extends State<Order> {
               );
             }).toList(),
       ),
+    );
+  }
+
+  Widget _buildProductImage(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) {
+      return Image.asset(
+        'assets/images/default.png',
+        width: 60,
+        height: 60,
+        fit: BoxFit.cover,
+      );
+    }
+
+    if (imagePath.startsWith('http')) {
+      return Image.network(
+        imagePath,
+        width: 60,
+        height: 60,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildDefaultImage(),
+      );
+    }
+
+    return Image.asset(
+      imagePath,
+      width: 60,
+      height: 60,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => _buildDefaultImage(),
+    );
+  }
+
+  Widget _buildDefaultImage() {
+    return Image.asset(
+      'assets/images/default.png',
+      width: 60,
+      height: 60,
+      fit: BoxFit.cover,
     );
   }
 
@@ -150,152 +165,147 @@ class _OrderState extends State<Order> {
                         List<dynamic> items = [];
                         try {
                           items = jsonDecode(order['products']);
-                        } catch (_) {}
+                        } catch (e) {
+                          debugPrint('Error parsing products: $e');
+                        }
+
+                        final status =
+                            order['status']?.toString().toLowerCase().trim() ??
+                            'pending';
 
                         return Card(
                           margin: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 8,
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "Total: Nrs. ${order['total_price']}",
-                                      ),
-                                      Text("Date: $formattedDate"),
-                                      Text("Status: ${order['status']}"),
-                                    ],
-                                  ),
-                                  trailing: IconButton(
-                                    icon: const Icon(
-                                      Icons.delete,
-                                      color: Colors.red,
-                                    ),
-                                    onPressed: () => _deleteOrder(order['id']),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                ...items.map((item) {
-                                  final imagePath = item['image'];
-                                  final isNetworkImage =
-                                      imagePath != null &&
-                                      imagePath.startsWith('http');
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black12, blurRadius: 4),
+                              ],
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
 
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 6,
-                                    ),
-                                    child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    subtitle: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Container(
-                                          width: 60,
-                                          height: 60,
-                                          margin: const EdgeInsets.only(
-                                            right: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            image: DecorationImage(
-                                              image:
-                                                  isNetworkImage
-                                                      ? NetworkImage(imagePath)
-                                                      : AssetImage(
-                                                            imagePath ??
-                                                                'assets/images/default.png',
-                                                          )
-                                                          as ImageProvider,
-                                              fit: BoxFit.cover,
-                                            ),
-                                          ),
+                                        Text(
+                                          "Total: Nrs. ${order['total_price']}",
                                         ),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item['product_name'] ?? '',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              Text(
-                                                "Quantity: ${item['quantity'] ?? 1}",
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                                        Text("Date: $formattedDate"),
+                                        Text("Status: ${order['status']}"),
                                       ],
                                     ),
-                                  );
-                                }).toList(),
-                                if (order['status'] != null &&
-                                    order['status'].toString().toLowerCase() !=
-                                        'pending')
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 10),
-                                    child: Align(
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ...items.map((item) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 6,
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            width: 60,
+                                            height: 60,
+                                            margin: const EdgeInsets.only(
+                                              right: 10,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: _buildProductImage(
+                                                item['image']?.toString(),
+                                              ),
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item['product_name'] ??
+                                                      'Unknown Product',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  "Quantity: ${item['quantity'] ?? 1}",
+                                                ),
+                                                if (item['product_price'] !=
+                                                    null)
+                                                  Text(
+                                                    "Price: Nrs.${item['product_price']}",
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  const SizedBox(height: 10),
+                                  if (status == 'pending')
+                                    Align(
                                       alignment: Alignment.centerRight,
                                       child: ElevatedButton(
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              _getStatusButtonColor(
-                                                order['status'],
-                                              ),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                        onPressed:
+                                            () => _cancelOrder(order['id']),
+                                        child: const Text(
+                                          'Cancel',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                    )
+                                  else if (status == 'completed')
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green,
                                         ),
                                         onPressed: () {
-                                          final status =
-                                              order['status']
-                                                  ?.toString()
-                                                  .toLowerCase() ??
-                                              '';
-                                          if (status == 'completed') {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  '🔍 Review this order',
-                                                ),
-                                              ),
-                                            );
-                                          } else if (status == 'in process') {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  '🚚 Your order is on the way!',
-                                                ),
-                                              ),
-                                            );
-                                          }
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder:
+                                                  (context) =>
+                                                      ReviewOrderScreen(
+                                                        products: List<
+                                                          Map<String, dynamic>
+                                                        >.from(items),
+                                                      ),
+                                            ),
+                                          );
                                         },
-                                        child: Text(
-                                          _getStatusButtonLabel(
-                                            order['status'],
-                                          ),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                          ),
+                                        child: const Text(
+                                          'Add Review',
+                                          style: TextStyle(color: Colors.white),
                                         ),
                                       ),
                                     ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         );

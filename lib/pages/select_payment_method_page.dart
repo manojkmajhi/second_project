@@ -80,27 +80,6 @@ class _SelectPaymentMethodPageState extends State<SelectPaymentMethodPage> {
           ],
         ),
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          onPressed:
-              _selectedMethod != null
-                  ? () => Navigator.pop(context, _selectedMethod)
-                  : null,
-          child: const Text(
-            'Confirm Payment Method',
-            style: TextStyle(fontSize: 16),
-          ),
-        ),
-      ),
     );
   }
 }

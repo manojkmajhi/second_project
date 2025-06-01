@@ -12,6 +12,7 @@ class DBHelper {
   static const String cartTableName = "cart";
   static const String orderTableName = "orders";
   static const String reviewTableName = "reviews";
+  static const String paymentTableName = "payments";
 
   DBHelper._();
   static final DBHelper instance = DBHelper._();
@@ -28,7 +29,7 @@ class DBHelper {
     String path = join(documentsDirectory.path, dbName);
     return await openDatabase(
       path,
-      version: 7, // Incremented version number
+      version: 8, // Incremented version number for new changes
       onCreate: (Database db, int version) async {
         await _createDatabase(db);
       },
@@ -40,7 +41,7 @@ class DBHelper {
 
   Future<void> _createDatabase(Database db) async {
     await db.execute("PRAGMA foreign_keys = ON;");
-    
+
     // Create users table
     await db.execute('''
       CREATE TABLE $userTableName (
@@ -51,7 +52,7 @@ class DBHelper {
         image TEXT
       )
     ''');
-    
+
     // Create products table
     await db.execute('''
       CREATE TABLE $productTableName (
@@ -65,7 +66,7 @@ class DBHelper {
         search_count INTEGER DEFAULT 0
       )
     ''');
-    
+
     // Create cart table
     await db.execute('''
       CREATE TABLE $cartTableName (
@@ -75,50 +76,87 @@ class DBHelper {
         FOREIGN KEY (product_id) REFERENCES $productTableName(id) ON DELETE CASCADE
       )
     ''');
-    
+
     // Create orders table with all columns
     await db.execute('''
       CREATE TABLE $orderTableName (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        total_price REAL NOT NULL,
+        user_id INTEGER,
+        total_price REAL,
         order_date TEXT,
         products TEXT,
         delivery_address TEXT,
         status TEXT DEFAULT 'pending',
-        payment_method TEXT,
+        payment_method TEXT,        
         customer_name TEXT,
         customer_email TEXT,
         customer_phone TEXT,
-        FOREIGN KEY (user_id) REFERENCES $userTableName(id) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES $userTableName (id)
       )
     ''');
-    
-    // Create reviews table
+
+    // Create reviews table with enhanced columns
     await db.execute('''
       CREATE TABLE $reviewTableName (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         product_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
         reviewer TEXT NOT NULL,
         comment TEXT,
-        rating INTEGER,
+        rating INTEGER NOT NULL,
+        media_path TEXT,  -- For image or video path
         timestamp TEXT,
-        FOREIGN KEY (product_id) REFERENCES $productTableName(id) ON DELETE CASCADE
+        FOREIGN KEY (product_id) REFERENCES $productTableName(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES $userTableName(id)
       )
     ''');
-    
+
+    // Create payments table
+    await db.execute('''
+      CREATE TABLE $paymentTableName (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        user_email TEXT NOT NULL,
+        amount REAL NOT NULL,
+        payment_method TEXT NOT NULL,
+        transaction_id TEXT,
+        status TEXT NOT NULL,
+        payment_date TEXT NOT NULL,
+        FOREIGN KEY (order_id) REFERENCES $orderTableName(id),
+        FOREIGN KEY (user_id) REFERENCES $userTableName(id)
+      )
+    ''');
+
     // Create indexes
     await db.execute("CREATE INDEX idx_email ON $userTableName(email);");
     await db.execute("CREATE INDEX idx_user_id ON $orderTableName(user_id);");
-    await db.execute("CREATE INDEX idx_product_id_cart ON $cartTableName(product_id);");
-    await db.execute("CREATE INDEX idx_product_id_reviews ON $reviewTableName(product_id);");
+    await db.execute(
+      "CREATE INDEX idx_product_id_cart ON $cartTableName(product_id);",
+    );
+    await db.execute(
+      "CREATE INDEX idx_product_id_reviews ON $reviewTableName(product_id);",
+    );
+    await db.execute(
+      "CREATE INDEX idx_user_id_reviews ON $reviewTableName(user_id);",
+    );
+    await db.execute(
+      "CREATE INDEX idx_order_id_payments ON $paymentTableName(order_id);",
+    );
+    await db.execute(
+      "CREATE INDEX idx_user_id_payments ON $paymentTableName(user_id);",
+    );
   }
 
-  Future<void> _migrateDatabase(Database db, int oldVersion, int newVersion) async {
+  Future<void> _migrateDatabase(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
     if (oldVersion < 2) {
       // Initial migration if needed
     }
-    
+
     if (oldVersion < 3) {
       // Add search_count column to product table
       await db.execute(
@@ -127,9 +165,7 @@ class DBHelper {
     }
 
     if (oldVersion < 4) {
-      await db.execute(
-        "ALTER TABLE $orderTableName ADD COLUMN products TEXT",
-      );
+      await db.execute("ALTER TABLE $orderTableName ADD COLUMN products TEXT");
       await db.execute(
         "ALTER TABLE $orderTableName ADD COLUMN status TEXT DEFAULT 'pending'",
       );
@@ -159,6 +195,43 @@ class DBHelper {
     if (oldVersion < 7) {
       // Any future migrations would go here
     }
+
+    if (oldVersion < 8) {
+      // Add new tables and columns for version 8
+      await db.execute('''
+        CREATE TABLE $paymentTableName (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          order_id INTEGER NOT NULL,
+          user_id INTEGER NOT NULL,
+          user_email TEXT NOT NULL,
+          amount REAL NOT NULL,
+          payment_method TEXT NOT NULL,
+          transaction_id TEXT,
+          status TEXT NOT NULL,
+          payment_date TEXT NOT NULL,
+          FOREIGN KEY (order_id) REFERENCES $orderTableName(id),
+          FOREIGN KEY (user_id) REFERENCES $userTableName(id)
+        )
+      ''');
+
+      await db.execute('''
+        ALTER TABLE $reviewTableName ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0
+      ''');
+
+      await db.execute('''
+        ALTER TABLE $reviewTableName ADD COLUMN media_path TEXT
+      ''');
+
+      await db.execute(
+        "CREATE INDEX idx_user_id_reviews ON $reviewTableName(user_id);",
+      );
+      await db.execute(
+        "CREATE INDEX idx_order_id_payments ON $paymentTableName(order_id);",
+      );
+      await db.execute(
+        "CREATE INDEX idx_user_id_payments ON $paymentTableName(user_id);",
+      );
+    }
   }
 
   // ==================== AUTH ====================
@@ -184,8 +257,10 @@ class DBHelper {
     return false;
   }
 
-  Future<void> logoutUser() async => await SharedPreferenceHelper().clearUserData();
-  Future<bool> isUserLoggedIn() async => await SharedPreferenceHelper().isUserLoggedIn();
+  Future<void> logoutUser() async =>
+      await SharedPreferenceHelper().clearUserData();
+  Future<bool> isUserLoggedIn() async =>
+      await SharedPreferenceHelper().isUserLoggedIn();
 
   Future<Map<String, dynamic>?> getLoggedInUser() async {
     final userIdStr = await SharedPreferenceHelper().getUserId();
@@ -385,22 +460,39 @@ class DBHelper {
   Future<void> deleteOrderById(int id) async =>
       (await getDB()).delete(orderTableName, where: 'id = ?', whereArgs: [id]);
 
-  // ==================== REVIEW ====================
-  Future<void> insertReview(
-    int productId,
-    int rating,
-    String reviewText,
-  ) async {
+  // ==================== Reviews ====================
+  Future<void> insertReview({
+    required int productId,
+    required int rating,
+    required String reviewText,
+    String? mediaPath,
+  }) async {
     final db = await getDB();
     final user = await getLoggedInUser();
-    final reviewer = user?['name'] ?? 'Anonymous';
-    await db.insert(reviewTableName, {
+    if (user == null) throw Exception("User not logged in");
+
+    final reviewer = user['name'] ?? 'Anonymous';
+    final review = {
       'product_id': productId,
+      'user_id': user['id'],
       'reviewer': reviewer,
       'comment': reviewText,
       'rating': rating,
+      'media_path': mediaPath,
       'timestamp': DateTime.now().toIso8601String(),
-    });
+    };
+
+    // Remove media_path if it's null to avoid storing "null" as a string
+    if (mediaPath == null) {
+      review.remove('media_path');
+    }
+
+    try {
+      await db.insert(reviewTableName, review);
+    } catch (e) {
+      print('Failed to insert review: $e');
+      rethrow;
+    }
   }
 
   Future<List<Map<String, dynamic>>> getReviewsForProduct(int productId) async {
@@ -413,15 +505,147 @@ class DBHelper {
     );
   }
 
+  // Enhanced version with better error handling
   Future<List<Map<String, dynamic>>> getReviewsByProductId(
     int productId,
   ) async {
+    try {
+      final db = await getDB();
+
+      // Verify table exists first
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='$reviewTableName'",
+      );
+
+      if (tables.isEmpty) {
+        debugPrint('Reviews table does not exist');
+        return [];
+      }
+
+      final reviews = await db.query(
+        reviewTableName,
+        where: 'product_id = ?',
+        whereArgs: [productId],
+        orderBy: 'timestamp DESC',
+      );
+
+      debugPrint('Fetched ${reviews.length} reviews for product $productId');
+      return reviews;
+    } catch (e) {
+      debugPrint('Error in getReviewsByProductId: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUserReviews(int userId) async {
     final db = await getDB();
     return await db.query(
       reviewTableName,
-      where: 'product_id = ?',
-      whereArgs: [productId],
+      where: 'user_id = ?',
+      whereArgs: [userId],
       orderBy: 'timestamp DESC',
+    );
+  }
+
+  Future<double> getAverageRatingForProduct(int productId) async {
+    final db = await getDB();
+    final result = await db.rawQuery(
+      '''
+      SELECT AVG(rating) as average_rating 
+      FROM $reviewTableName 
+      WHERE product_id = ?
+    ''',
+      [productId],
+    );
+
+    return result.first['average_rating'] != null
+        ? (result.first['average_rating'] as num).toDouble()
+        : 0.0;
+  }
+
+  Future<List<Map<String, dynamic>>> getAllReviews() async {
+    final db = await getDB();
+
+    // Check if table exists
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='$reviewTableName'",
+    );
+    if (tables.isEmpty) {
+      debugPrint("reviews table not found.");
+      return [];
+    }
+
+    final reviews = await db.query(reviewTableName, orderBy: 'timestamp DESC');
+
+    debugPrint(' Fetched ${reviews.length} reviews.');
+    return reviews;
+  }
+
+  Future<void> deleteReview(int id) async {
+    final db = await getDB();
+    await db.delete('reviews', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<bool> hasReviewForOrder(int orderId) async {
+    final db = await getDB();
+    final result = await db.query(
+      'reviews',
+      where: 'order_id = ?',
+      whereArgs: [orderId],
+    );
+    return result.isNotEmpty;
+  }
+
+  // ==================== PAYMENT ====================
+  Future<int> insertPayment({
+    required int orderId,
+    required int userId,
+    required String userEmail,
+    required double amount,
+    required String paymentMethod,
+    required String status,
+    String? transactionId,
+  }) async {
+    final db = await getDB();
+    return await db.insert(paymentTableName, {
+      'order_id': orderId,
+      'user_id': userId,
+      'user_email': userEmail,
+      'amount': amount,
+      'payment_method': paymentMethod,
+      'transaction_id': transactionId,
+      'status': status,
+      'payment_date': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getPaymentsByUser(int userId) async {
+    final db = await getDB();
+    return await db.query(
+      paymentTableName,
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'payment_date DESC',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getPaymentsByOrder(int orderId) async {
+    final db = await getDB();
+    return await db.query(
+      paymentTableName,
+      where: 'order_id = ?',
+      whereArgs: [orderId],
+      orderBy: 'payment_date DESC',
+    );
+  }
+
+  Future<void> updatePaymentStatus(int paymentId, String newStatus) async {
+    final db = await getDB();
+    await db.update(
+      paymentTableName,
+      {'status': newStatus},
+      where: 'id = ?',
+      whereArgs: [paymentId],
     );
   }
 

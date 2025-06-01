@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:second_project/data/local/db_helper.dart';
-import 'package:second_project/pages/product_detail.dart';
+import 'package:second_project/pages/product_details/screen/product_detail.dart';
 import 'package:second_project/widget/support_widget.dart';
 
 class CategoryProducts extends StatefulWidget {
-  final String? category; // Changed to nullable to handle "All" case
+  final String? category;
 
   const CategoryProducts({super.key, this.category});
 

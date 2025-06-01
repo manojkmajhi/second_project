@@ -24,7 +24,7 @@ class _CartPageState extends State<CartPage> {
   Future<void> loadCart() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? cartJson = prefs.getString('cart_products');
-    debugPrint("📦 Loaded cart: $cartJson");
+    debugPrint(" Loaded cart: $cartJson");
 
     if (cartJson != null && cartJson.isNotEmpty) {
       List<dynamic> decoded = jsonDecode(cartJson);
@@ -34,7 +34,7 @@ class _CartPageState extends State<CartPage> {
         selectedItems = List<bool>.filled(cartProducts.length, false);
       });
     } else {
-      debugPrint("🧺 Cart is empty.");
+      debugPrint(" Cart is empty.");
     }
   }
 
@@ -96,13 +96,17 @@ class _CartPageState extends State<CartPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F9F9),
       appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 252, 251, 251),
+        automaticallyImplyLeading: false,
+        centerTitle: true,
         title: const Text(
           'Your Cart',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 1,
       ),
       body:
           cartProducts.isEmpty

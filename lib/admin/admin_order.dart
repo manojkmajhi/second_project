@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:second_project/data/local/db_helper.dart';
 
-class OrdersScreen extends StatefulWidget {
-  const OrdersScreen({Key? key}) : super(key: key);
+class AdminOrdersScreen extends StatefulWidget {
+  const AdminOrdersScreen({Key? key}) : super(key: key);
 
   @override
-  State<OrdersScreen> createState() => _OrdersScreenState();
+  State<AdminOrdersScreen> createState() => _AdminOrdersScreenState();
 }
 
-class _OrdersScreenState extends State<OrdersScreen> {
+class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   String _selectedStatus = 'Pending';
   List<Map<String, dynamic>> _orders = [];
 
@@ -226,10 +226,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 235, 235, 235),
       appBar: AppBar(
-        title: const Text('All Orders'),
+        backgroundColor: const Color.fromARGB(255, 252, 251, 251),
+        automaticallyImplyLeading: false,
         centerTitle: true,
-        backgroundColor: const Color.fromARGB(255, 235, 235, 235),
+        title: const Text(
+          'All Orders',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: SafeArea(
         child: Column(

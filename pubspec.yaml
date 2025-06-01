@@ -61,6 +61,10 @@ dependencies:
   intl: ^0.18.1
   khalti: ^2.0.0
   khalti_flutter: ^3.0.0
+  http: ^1.4.0
+  cached_network_image: ^3.4.1
+ 
+  
  
 
  

@@ -16,18 +16,19 @@ class BottomNav extends StatefulWidget {
 class _BottomNavState extends State<BottomNav> {
   late List<Widget> pages;
   late Home homePage;
-  late Order orderPage;
+  late Widget orderPage;
   late Widget cart;
   late Profile profile;
   late int currentTabIndex;
   int cartKey = 0;
+  int orderKey = 0; // Add key for Order page
 
   @override
   void initState() {
     super.initState();
     currentTabIndex = widget.initialIndex;
     homePage = const Home();
-    orderPage = const Order();
+    orderPage = Order(key: ValueKey(orderKey)); // Initialize with key
     cart = CartPage(key: ValueKey(cartKey));
     profile = const Profile();
     pages = [homePage, orderPage, cart, profile];
@@ -52,8 +53,13 @@ class _BottomNavState extends State<BottomNav> {
         onTap: (index) {
           setState(() {
             currentTabIndex = index;
-            if (index == 2) {
-              
+            if (index == 1) {
+              // Order tab
+              orderKey++;
+              orderPage = Order(key: ValueKey(orderKey));
+              pages[1] = orderPage;
+            } else if (index == 2) {
+              // Cart tab
               cartKey++;
               cart = CartPage(key: ValueKey(cartKey));
               pages[2] = cart;

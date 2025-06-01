@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/pages/product_details/widgets/recommendation_section.dart';
+import 'package:second_project/pages/product_details/widgets/review_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:second_project/data/local/db_helper.dart';
 import 'package:second_project/widget/support_widget.dart';
 import 'package:second_project/pages/checkout.dart';
 import 'package:second_project/pages/cart.dart';
@@ -19,6 +21,9 @@ class ProductDetail extends StatefulWidget {
 class _ProductDetailState extends State<ProductDetail> {
   List<Map<String, dynamic>> recommended = [];
   List<Map<String, dynamic>> reviews = [];
+
+  int userRating = 0;
+  final TextEditingController _reviewController = TextEditingController();
 
   @override
   void initState() {
@@ -54,35 +59,24 @@ class _ProductDetailState extends State<ProductDetail> {
     setState(() => reviews = data);
   }
 
-  Future<void> submitReview(int rating, String reviewText) async {
-    if (reviewText.trim().isEmpty) return;
-    await DBHelper.instance.insertReview(
-      widget.product['id'],
-      rating,
-      reviewText.trim(),
-    );
-
-    fetchReviews();
-  }
-
   Future<void> addToCart(BuildContext context) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? cartJson = prefs.getString('cart_products');
     List<Map<String, dynamic>> cartItems = [];
 
     if (cartJson != null) {
-      List<dynamic> decoded = jsonDecode(cartJson);
-      cartItems = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      cartItems =
+          (jsonDecode(cartJson) as List)
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
     }
 
-    bool exists = cartItems.any(
-      (item) =>
-          (item['product_id'] != null &&
-              item['product_id'] == widget.product['product_id']) ||
-          (item['product_name'] == widget.product['product_name'] &&
-              item['product_price'] == widget.product['product_price'] &&
-              item['category'] == widget.product['category']),
-    );
+    final currentId = widget.product['product_id'] ?? widget.product['id'];
+
+    bool exists = cartItems.any((item) {
+      final itemId = item['product_id'] ?? item['id'];
+      return itemId == currentId;
+    });
 
     if (exists) {
       showDialog(
@@ -115,7 +109,6 @@ class _ProductDetailState extends State<ProductDetail> {
     final newProduct = Map<String, dynamic>.from(widget.product);
     newProduct['quantity'] = 1;
     cartItems.add(newProduct);
-
     await prefs.setString('cart_products', jsonEncode(cartItems));
 
     ScaffoldMessenger.of(
@@ -123,162 +116,63 @@ class _ProductDetailState extends State<ProductDetail> {
     ).showSnackBar(const SnackBar(content: Text("Added to cart")));
   }
 
-  Widget buildReviewSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Customer Review",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        if (reviews.isEmpty)
-          const Text(
-            "No reviews yet.",
-            style: TextStyle(
-              fontSize: 15,
-              color: Colors.grey,
-              fontStyle: FontStyle.italic,
-            ),
-          )
-        else
-          ...reviews.map(
-            (review) => ListTile(
-              leading: const Icon(Icons.star, color: Colors.amber),
-              title: Text("⭐ ${review['rating']}"),
-              subtitle: Text(review['review_text']),
-            ),
-          ),
-      ],
+  Future<void> submitReview() async {
+    final productId = widget.product['id'];
+    final comment = _reviewController.text.trim();
+
+    if (userRating == 0 && comment.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please provide a rating or comment.")),
+      );
+      return;
+    }
+
+    await DBHelper.instance.insertReview(
+      productId: productId,
+      rating: userRating,
+      reviewText: comment,
     );
-  }
 
-  Widget buildRecommendations() {
-    if (recommended.isEmpty) return const SizedBox();
+    _reviewController.clear();
+    userRating = 0;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 30),
-        const Text(
-          "Recommended for You",
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 160,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: recommended.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final p = recommended[index];
-              final imageWidget =
-                  p['image_path'] != null && File(p['image_path']).existsSync()
-                      ? Image.file(File(p['image_path']), fit: BoxFit.cover)
-                      : const Icon(Icons.image_not_supported, size: 50);
-
-              return GestureDetector(
-                onTap:
-                    () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ProductDetail(product: p),
-                      ),
-                    ),
-                child: Container(
-                  width: 130,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 6,
-                        offset: const Offset(2, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(16),
-                        ),
-                        child: SizedBox(
-                          height: 90,
-                          width: double.infinity,
-                          child: imageWidget,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          p['product_name'],
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Text(
-                          "Nrs. ${p['product_price']}",
-                          style: const TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+    fetchReviews();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Review submitted successfully!")),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final imagePath = widget.product['image_path'];
+    final hasImage = imagePath != null && File(imagePath).existsSync();
+
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 235, 235, 235),
       body: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Stack(
               children: [
                 Center(
-                  child:
-                      widget.product['image_path'] != null &&
-                              File(widget.product['image_path']).existsSync()
-                          ? ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: Image.file(
-                              File(widget.product['image_path']),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child:
+                        hasImage
+                            ? Image.file(
+                              File(imagePath),
                               height: 320,
                               width: 400,
                               fit: BoxFit.cover,
-                            ),
-                          )
-                          : ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: Image.asset(
+                            )
+                            : Image.asset(
                               "assets/logo/ToolKit_logo.png",
                               height: 350,
                               width: 400,
                               fit: BoxFit.cover,
                             ),
-                          ),
+                  ),
                 ),
-
                 Positioned(
                   top: 30,
                   left: 10,
@@ -293,7 +187,6 @@ class _ProductDetailState extends State<ProductDetail> {
                       child: const Icon(
                         Icons.arrow_back_ios_new_outlined,
                         size: 30,
-                        color: Colors.black,
                       ),
                     ),
                   ),
@@ -307,10 +200,7 @@ class _ProductDetailState extends State<ProductDetail> {
               ),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topRight: Radius.circular(30.0),
-                  topLeft: Radius.circular(30.0),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30.0)),
               ),
               width: MediaQuery.of(context).size.width,
               child: Column(
@@ -326,7 +216,7 @@ class _ProductDetailState extends State<ProductDetail> {
                         ),
                       ),
                       Text(
-                        "Nrs. ${widget.product['product_price']?.toString() ?? '0'}",
+                        "Nrs. ${widget.product['product_price']}",
                         style: const TextStyle(
                           color: Color.fromARGB(135, 213, 91, 91),
                           fontSize: 23,
@@ -348,7 +238,6 @@ class _ProductDetailState extends State<ProductDetail> {
                     textAlign: TextAlign.justify,
                     style: const TextStyle(
                       fontSize: 15,
-                      color: Colors.black,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -419,8 +308,12 @@ class _ProductDetailState extends State<ProductDetail> {
                     ],
                   ),
                   const SizedBox(height: 30),
-                  buildReviewSection(),
-                  buildRecommendations(),
+                  ReviewSection(
+                    reviews: reviews,
+                    
+                  ),
+                  const SizedBox(height: 30),
+                  RecommendationSection(recommended: recommended),
                 ],
               ),
             ),

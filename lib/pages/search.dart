@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:second_project/pages/product_detail.dart';
+import 'package:second_project/pages/product_details/screen/product_detail.dart';
 import 'dart:io';
 
 import '../data/local/db_helper.dart';

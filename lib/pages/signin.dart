@@ -210,6 +210,7 @@ class _SignInState extends State<SignIn> {
       context: context,
       builder: (context) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           title: const Text("Reset Password"),
           content: TextField(
             controller: resetEmailController,
@@ -222,7 +223,7 @@ class _SignInState extends State<SignIn> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text("Cancel"),
+              child: const Text("Cancel", style: TextStyle(color: Colors.red)), 
             ),
             TextButton(
               onPressed: () async {
@@ -252,7 +253,10 @@ class _SignInState extends State<SignIn> {
                   }
                 }
               },
-              child: const Text("Send Reset Link"),
+              child: const Text(
+                "Send Reset Link",
+                style: TextStyle(color: Colors.green),
+              ), 
             ),
           ],
         );
@@ -443,25 +447,15 @@ class _SignInState extends State<SignIn> {
                           color: Colors.black,
                           borderRadius: BorderRadius.circular(10.0),
                         ),
-                        child: Center(
-                          child:
-                              _isLoading
-                                  ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                  : const Text(
-                                    "Login",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                        child: const Center(
+                          child: Text(
+                            "Login",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -567,7 +561,11 @@ class _SignInState extends State<SignIn> {
           if (_isLoading)
             Container(
               color: Colors.black.withOpacity(0.5),
-              child: const Center(child: CircularProgressIndicator()),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
             ),
         ],
       ),

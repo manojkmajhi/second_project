@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:second_project/admin/add_product.dart';
+import 'package:second_project/admin/admin_reviews.dart';
 import 'package:second_project/admin/admin_signin.dart';
-import 'package:second_project/admin/orders.dart';
+import 'package:second_project/admin/admin_order.dart';
 import 'package:second_project/admin/user_details.dart';
 import 'package:second_project/admin/view_product.dart';
-
+import 'package:second_project/admin/sales_report.dart'; // Add this import
 import 'package:second_project/widget/support_widget.dart';
 
 class AdminHome extends StatefulWidget {
@@ -20,14 +21,17 @@ class _AdminHomeState extends State<AdminHome> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 235, 235, 235),
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 235, 235, 235),
-        title: Text(
-          "Admin Dashboard",
-          style: AppWidget.semiboldTextFieldStyle(),
-        ),
-
-        elevation: 1,
+        backgroundColor: const Color.fromARGB(255, 252, 251, 251),
+        automaticallyImplyLeading: false,
         centerTitle: true,
+        title: const Text(
+          'Admin Dashboard',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -70,7 +74,7 @@ class _AdminHomeState extends State<AdminHome> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => AddProduct()),
+                        MaterialPageRoute(builder: (context) => const AddProduct()),
                       );
                     },
                   ),
@@ -91,13 +95,13 @@ class _AdminHomeState extends State<AdminHome> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const OrdersScreen(),
+                          builder: (context) => const AdminOrdersScreen(),
                         ),
                       );
                     },
                   ),
                   _buildAdminButton(
-                    label: " View Users",
+                    label: "View Users",
                     onTap: () {
                       Navigator.push(
                         context,
@@ -110,7 +114,23 @@ class _AdminHomeState extends State<AdminHome> {
                   _buildAdminButton(
                     label: "Sales Report",
                     onTap: () {
-                      Navigator.pushNamed(context, '/salesReport');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SalesReportScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildAdminButton(
+                    label: "Reviews",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AdminReviewsScreen(),
+                        ),
+                      );
                     },
                   ),
                   _buildAdminButton(
