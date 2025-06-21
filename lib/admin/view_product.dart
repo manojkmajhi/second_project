@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:second_project/admin/update_product.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
 
 class ViewProduct extends StatefulWidget {
   const ViewProduct({super.key});

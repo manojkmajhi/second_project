@@ -29,12 +29,9 @@ class DBHelper {
     String path = join(documentsDirectory.path, dbName);
     return await openDatabase(
       path,
-      version: 8, // Incremented version number for new changes
+      version: 1, // Simplified to single version
       onCreate: (Database db, int version) async {
         await _createDatabase(db);
-      },
-      onUpgrade: (db, oldVersion, newVersion) async {
-        await _migrateDatabase(db, oldVersion, newVersion);
       },
     );
   }
@@ -53,7 +50,7 @@ class DBHelper {
       )
     ''');
 
-    // Create products table
+    // Create products table with sub_category
     await db.execute('''
       CREATE TABLE $productTableName (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,6 +59,7 @@ class DBHelper {
         product_quantity INTEGER NOT NULL,
         details TEXT,
         category TEXT,
+        sub_category TEXT,
         image_path TEXT,
         search_count INTEGER DEFAULT 0
       )
@@ -77,7 +75,7 @@ class DBHelper {
       )
     ''');
 
-    // Create orders table with all columns
+    // Create orders table
     await db.execute('''
       CREATE TABLE $orderTableName (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,7 +93,7 @@ class DBHelper {
       )
     ''');
 
-    // Create reviews table with enhanced columns
+    // Create reviews table
     await db.execute('''
       CREATE TABLE $reviewTableName (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,7 +102,7 @@ class DBHelper {
         reviewer TEXT NOT NULL,
         comment TEXT,
         rating INTEGER NOT NULL,
-        media_path TEXT,  -- For image or video path
+        media_path TEXT,
         timestamp TEXT,
         FOREIGN KEY (product_id) REFERENCES $productTableName(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES $userTableName(id)
@@ -131,107 +129,11 @@ class DBHelper {
     // Create indexes
     await db.execute("CREATE INDEX idx_email ON $userTableName(email);");
     await db.execute("CREATE INDEX idx_user_id ON $orderTableName(user_id);");
-    await db.execute(
-      "CREATE INDEX idx_product_id_cart ON $cartTableName(product_id);",
-    );
-    await db.execute(
-      "CREATE INDEX idx_product_id_reviews ON $reviewTableName(product_id);",
-    );
-    await db.execute(
-      "CREATE INDEX idx_user_id_reviews ON $reviewTableName(user_id);",
-    );
-    await db.execute(
-      "CREATE INDEX idx_order_id_payments ON $paymentTableName(order_id);",
-    );
-    await db.execute(
-      "CREATE INDEX idx_user_id_payments ON $paymentTableName(user_id);",
-    );
-  }
-
-  Future<void> _migrateDatabase(
-    Database db,
-    int oldVersion,
-    int newVersion,
-  ) async {
-    if (oldVersion < 2) {
-      // Initial migration if needed
-    }
-
-    if (oldVersion < 3) {
-      // Add search_count column to product table
-      await db.execute(
-        "ALTER TABLE $productTableName ADD COLUMN search_count INTEGER DEFAULT 0",
-      );
-    }
-
-    if (oldVersion < 4) {
-      await db.execute("ALTER TABLE $orderTableName ADD COLUMN products TEXT");
-      await db.execute(
-        "ALTER TABLE $orderTableName ADD COLUMN status TEXT DEFAULT 'pending'",
-      );
-    }
-
-    if (oldVersion < 5) {
-      await db.execute(
-        "ALTER TABLE $orderTableName ADD COLUMN delivery_address TEXT",
-      );
-    }
-
-    if (oldVersion < 6) {
-      await db.execute(
-        "ALTER TABLE $orderTableName ADD COLUMN payment_method TEXT",
-      );
-      await db.execute(
-        "ALTER TABLE $orderTableName ADD COLUMN customer_name TEXT",
-      );
-      await db.execute(
-        "ALTER TABLE $orderTableName ADD COLUMN customer_email TEXT",
-      );
-      await db.execute(
-        "ALTER TABLE $orderTableName ADD COLUMN customer_phone TEXT",
-      );
-    }
-
-    if (oldVersion < 7) {
-      // Any future migrations would go here
-    }
-
-    if (oldVersion < 8) {
-      // Add new tables and columns for version 8
-      await db.execute('''
-        CREATE TABLE $paymentTableName (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          order_id INTEGER NOT NULL,
-          user_id INTEGER NOT NULL,
-          user_email TEXT NOT NULL,
-          amount REAL NOT NULL,
-          payment_method TEXT NOT NULL,
-          transaction_id TEXT,
-          status TEXT NOT NULL,
-          payment_date TEXT NOT NULL,
-          FOREIGN KEY (order_id) REFERENCES $orderTableName(id),
-          FOREIGN KEY (user_id) REFERENCES $userTableName(id)
-        )
-      ''');
-
-      await db.execute('''
-        ALTER TABLE $reviewTableName ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0
-      ''');
-
-      await db.execute('''
-        ALTER TABLE $reviewTableName ADD COLUMN media_path TEXT
-      ''');
-
-      await db.execute(
-        "CREATE INDEX idx_user_id_reviews ON $reviewTableName(user_id);",
-      );
-      await db.execute(
-        "CREATE INDEX idx_order_id_payments ON $paymentTableName(order_id);",
-      );
-      await db.execute(
-        "CREATE INDEX idx_user_id_payments ON $paymentTableName(user_id);",
-      );
-    }
+    await db.execute("CREATE INDEX idx_product_id_cart ON $cartTableName(product_id);");
+    await db.execute("CREATE INDEX idx_product_id_reviews ON $reviewTableName(product_id);");
+    await db.execute("CREATE INDEX idx_user_id_reviews ON $reviewTableName(user_id);");
+    await db.execute("CREATE INDEX idx_order_id_payments ON $paymentTableName(order_id);");
+    await db.execute("CREATE INDEX idx_user_id_payments ON $paymentTableName(user_id);");
   }
 
   // ==================== AUTH ====================
@@ -257,10 +159,8 @@ class DBHelper {
     return false;
   }
 
-  Future<void> logoutUser() async =>
-      await SharedPreferenceHelper().clearUserData();
-  Future<bool> isUserLoggedIn() async =>
-      await SharedPreferenceHelper().isUserLoggedIn();
+  Future<void> logoutUser() async => await SharedPreferenceHelper().clearUserData();
+  Future<bool> isUserLoggedIn() async => await SharedPreferenceHelper().isUserLoggedIn();
 
   Future<Map<String, dynamic>?> getLoggedInUser() async {
     final userIdStr = await SharedPreferenceHelper().getUserId();
@@ -295,8 +195,11 @@ class DBHelper {
     final db = await getDB();
     if (product['category'] != null) {
       String raw = product['category'].toString().trim();
-      product['category'] =
-          raw[0].toUpperCase() + raw.substring(1).toLowerCase();
+      product['category'] = raw[0].toUpperCase() + raw.substring(1).toLowerCase();
+    }
+    if (product['sub_category'] != null) {
+      String raw = product['sub_category'].toString().trim();
+      product['sub_category'] = raw[0].toUpperCase() + raw.substring(1).toLowerCase();
     }
     return await db.insert(productTableName, product);
   }
@@ -317,15 +220,27 @@ class DBHelper {
     for (var product in products) {
       final id = product['id'];
       final rawCategory = (product['category'] ?? '').toString().trim();
-      if (rawCategory.isEmpty) continue;
-      final normalizedCategory =
-          rawCategory[0].toUpperCase() + rawCategory.substring(1).toLowerCase();
-      await db.update(
-        productTableName,
-        {'category': normalizedCategory},
-        where: 'id = ?',
-        whereArgs: [id],
-      );
+      final rawSubCategory = (product['sub_category'] ?? '').toString().trim();
+      
+      if (rawCategory.isNotEmpty) {
+        final normalizedCategory = rawCategory[0].toUpperCase() + rawCategory.substring(1).toLowerCase();
+        await db.update(
+          productTableName,
+          {'category': normalizedCategory},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+      
+      if (rawSubCategory.isNotEmpty) {
+        final normalizedSubCategory = rawSubCategory[0].toUpperCase() + rawSubCategory.substring(1).toLowerCase();
+        await db.update(
+          productTableName,
+          {'sub_category': normalizedSubCategory},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
     }
   }
 
@@ -337,9 +252,7 @@ class DBHelper {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getTopSearchedProducts({
-    int limit = 10,
-  }) async {
+  Future<List<Map<String, dynamic>>> getTopSearchedProducts({int limit = 10}) async {
     final db = await getDB();
     return await db.query(
       productTableName,
@@ -351,13 +264,14 @@ class DBHelper {
   Future<int> updateProduct(Map<String, dynamic> product) async {
     final db = await getDB();
     return await db.update(
-      'product',
+      productTableName,
       {
         'product_name': product['product_name'],
         'product_price': product['product_price'],
         'product_quantity': product['product_quantity'],
         'details': product['details'],
         'category': product['category'],
+        'sub_category': product['sub_category'],
         'image_path': product['image_path'],
       },
       where: 'id = ?',
@@ -482,7 +396,6 @@ class DBHelper {
       'timestamp': DateTime.now().toIso8601String(),
     };
 
-    // Remove media_path if it's null to avoid storing "null" as a string
     if (mediaPath == null) {
       review.remove('media_path');
     }
@@ -505,30 +418,15 @@ class DBHelper {
     );
   }
 
-  // Enhanced version with better error handling
-  Future<List<Map<String, dynamic>>> getReviewsByProductId(
-    int productId,
-  ) async {
+  Future<List<Map<String, dynamic>>> getReviewsByProductId(int productId) async {
     try {
       final db = await getDB();
-
-      // Verify table exists first
-      final tables = await db.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='$reviewTableName'",
-      );
-
-      if (tables.isEmpty) {
-        debugPrint('Reviews table does not exist');
-        return [];
-      }
-
       final reviews = await db.query(
         reviewTableName,
         where: 'product_id = ?',
         whereArgs: [productId],
         orderBy: 'timestamp DESC',
       );
-
       debugPrint('Fetched ${reviews.length} reviews for product $productId');
       return reviews;
     } catch (e) {
@@ -565,35 +463,12 @@ class DBHelper {
 
   Future<List<Map<String, dynamic>>> getAllReviews() async {
     final db = await getDB();
-
-    // Check if table exists
-    final tables = await db.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='$reviewTableName'",
-    );
-    if (tables.isEmpty) {
-      debugPrint("reviews table not found.");
-      return [];
-    }
-
-    final reviews = await db.query(reviewTableName, orderBy: 'timestamp DESC');
-
-    debugPrint(' Fetched ${reviews.length} reviews.');
-    return reviews;
+    return await db.query(reviewTableName, orderBy: 'timestamp DESC');
   }
 
   Future<void> deleteReview(int id) async {
     final db = await getDB();
     await db.delete('reviews', where: 'id = ?', whereArgs: [id]);
-  }
-
-  Future<bool> hasReviewForOrder(int orderId) async {
-    final db = await getDB();
-    final result = await db.query(
-      'reviews',
-      where: 'order_id = ?',
-      whereArgs: [orderId],
-    );
-    return result.isNotEmpty;
   }
 
   // ==================== PAYMENT ====================
@@ -668,11 +543,10 @@ class DBHelper {
     }
 
     String lowerDetails = details.toLowerCase();
-
     Map<Map<String, dynamic>, int> similarityScores = {};
+    
     for (var product in allProducts) {
-      String productDetails =
-          (product['details'] ?? '').toString().toLowerCase();
+      String productDetails = (product['details'] ?? '').toString().toLowerCase();
       int matchScore = 0;
 
       for (var word in lowerDetails.split(' ')) {

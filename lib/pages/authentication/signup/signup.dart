@@ -2,8 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:second_project/database/database.dart';
 import 'package:second_project/database/shared_preferences.dart';
-import 'package:second_project/data/local/db_helper.dart';
-import 'package:second_project/pages/signin.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
+import 'package:second_project/pages/authentication/signin/signin.dart';
 import 'package:second_project/widget/support_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

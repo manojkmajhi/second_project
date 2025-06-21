@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
 
 class SalesReportScreen extends StatefulWidget {
   const SalesReportScreen({super.key});
@@ -49,8 +49,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       _orders =
           _orders.where((order) {
             final status = order['status']?.toString().toLowerCase();
-            return status == 'completed' ||
-                status == 'delivered'; // Include both statuses if needed
+            return status == 'completed' || status == 'delivered';
           }).toList();
 
       debugPrint('Completed orders: ${_orders.length}');
@@ -165,24 +164,53 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 235, 235, 235),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 252, 251, 251),
-        automaticallyImplyLeading: false,
+        backgroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
         title: const Text(
           'Sales Report',
           style: TextStyle(
             color: Colors.black,
-            fontSize: 30,
+            fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
         ),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Column(
         children: [
-          _buildFilterDropdown(),
-          _buildSummaryCard(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: _buildFilterDropdown(),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: _buildSummaryCard(),
+          ),
+          const Divider(height: 1, thickness: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Text(
+                  'Order History',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${_filteredOrders.length} items',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child:
                 _isLoading
@@ -195,62 +223,153 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   }
 
   Widget _buildFilterDropdown() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      padding: const EdgeInsets.all(16),
       child: DropdownButtonFormField<String>(
         value: _selectedFilter,
+        isExpanded: true,
+        icon: const Icon(Icons.arrow_drop_down, color: Colors.black),
+        decoration: InputDecoration(
+          labelText: 'Filter period',
+          labelStyle: const TextStyle(color: Colors.black54),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+        ),
+        dropdownColor: Colors.white,
         items:
             _filterOptions.map((String value) {
-              return DropdownMenuItem<String>(value: value, child: Text(value));
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value, style: const TextStyle(color: Colors.black)),
+              );
             }).toList(),
         onChanged: (value) => _applyFilter(value!),
-        decoration: const InputDecoration(
-          labelText: 'Filter by',
-          border: OutlineInputBorder(),
-        ),
       ),
     );
   }
 
   Widget _buildSummaryCard() {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Text(
-              '$_selectedFilter Sales',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${_filteredOrders.length} Orders',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Total: Nrs.${_totalSales.toStringAsFixed(2)}',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.green,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$_selectedFilter Summary',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildSummaryItem(
+                    'Total Orders',
+                    _filteredOrders.length.toString(),
+                    Icons.receipt,
+                    Colors.blue,
+                  ),
+                  _buildSummaryItem(
+                    'Total Sales',
+                    'Nrs.${_totalSales.toStringAsFixed(2)}',
+                    Icons.attach_money,
+                    Colors.green,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildSummaryItem(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+            ),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildSalesList() {
     if (_filteredOrders.isEmpty) {
-      return const Center(
-        child: Text('No sales data available for the selected period'),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No sales data available',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: Colors.grey),
+            ),
+            Text(
+              'for the selected period',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            ),
+          ],
+        ),
       );
     }
 
-    return ListView.builder(
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 16),
       itemCount: _filteredOrders.length,
+      separatorBuilder: (context, index) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final order = _filteredOrders[index];
         DateTime orderDate;
@@ -266,16 +385,41 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           'MMM dd, yyyy - hh:mm a',
         ).format(orderDate);
 
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        return Container(
+          color: Colors.white,
           child: ListTile(
-            title: Text('Order #${order['id']}'),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.shopping_bag, color: Colors.green),
+            ),
+            title: Text(
+              'Order #${order['id']}',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(formattedDate),
-                Text('Customer: ${order['customer_name'] ?? 'N/A'}'),
-                Text('Status: ${order['status'] ?? 'N/A'}'),
+                const SizedBox(height: 4),
+                Text(
+                  formattedDate,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                if (order['customer_name'] != null)
+                  Text(
+                    'Customer: ${order['customer_name']}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
               ],
             ),
             trailing: Column(
@@ -290,9 +434,20 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                     color: Colors.green,
                   ),
                 ),
-                Text(
-                  'Qty: ${order['quantity'] ?? '1'}',
-                  style: const TextStyle(fontSize: 12),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(order['status']?.toString() ?? ''),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    order['status']?.toString() ?? 'N/A',
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                  ),
                 ),
               ],
             ),
@@ -300,5 +455,20 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         );
       },
     );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return Colors.green;
+      case 'delivered':
+        return Colors.blue;
+      case 'pending':
+        return Colors.orange;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 }

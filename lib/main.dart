@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:khalti_flutter/khalti_flutter.dart';
 import 'package:second_project/services/init_service.dart';
-import 'package:second_project/pages/signin.dart';
+import 'package:second_project/pages/authentication/signin/signin.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

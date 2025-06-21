@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
 
 class UserDetailsPage extends StatefulWidget {
   const UserDetailsPage({super.key});

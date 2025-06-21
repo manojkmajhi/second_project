@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
 
 class AdminOrdersScreen extends StatefulWidget {
   const AdminOrdersScreen({Key? key}) : super(key: key);

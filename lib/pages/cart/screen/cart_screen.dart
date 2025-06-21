@@ -1,0 +1,224 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:second_project/pages/cart/model/cart_product_model.dart';
+import 'package:second_project/pages/cart/widget/cart_item_card.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:second_project/pages/checkout.dart'; 
+
+class CartPage extends StatefulWidget {
+  const CartPage({Key? key}) : super(key: key);
+
+  @override
+  State<CartPage> createState() => _CartPageState();
+}
+
+class _CartPageState extends State<CartPage> {
+  List<CartProductModel> cartProducts = [];
+  List<bool> selectedItems = []; // To track selected items for checkout
+
+  @override
+  void initState() {
+    super.initState();
+    loadCart();
+  }
+
+  // Loads cart products from SharedPreferences
+  Future<void> loadCart() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? cartJson = prefs.getString('cart_products');
+    debugPrint("Loaded cart: $cartJson");
+
+    if (cartJson != null && cartJson.isNotEmpty) {
+      List<dynamic> decoded = jsonDecode(cartJson);
+      setState(() {
+        cartProducts =
+            decoded.map((e) => CartProductModel.fromJson(e)).toList();
+        selectedItems = List<bool>.filled(cartProducts.length, false);
+      });
+    } else {
+      debugPrint("Cart is empty.");
+    }
+  }
+
+  // Saves cart products to SharedPreferences
+  Future<void> saveCart() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (cartProducts.isEmpty) {
+      await prefs.remove('cart_products');
+    } else {
+      await prefs.setString(
+          'cart_products', jsonEncode(cartProducts.map((e) => e.toJson()).toList()));
+    }
+  }
+
+  // Removes a product from the cart
+  void removeProduct(int index) async {
+    if (index < cartProducts.length) {
+      setState(() {
+        cartProducts.removeAt(index);
+        // Adjust selectedItems list after removal
+        selectedItems = List<bool>.filled(cartProducts.length, false);
+      });
+      await saveCart();
+    }
+  }
+
+  // Updates the quantity of a product in the cart
+  void updateQuantity(int index, int change) async {
+    if (index < cartProducts.length) {
+      int currentQty = cartProducts[index].quantity;
+      int newQty = currentQty + change;
+      if (newQty > 0) {
+        setState(() {
+          cartProducts[index].quantity = newQty;
+        });
+        await saveCart();
+      }
+    }
+  }
+
+  // Calculates the total price of selected items
+  double getTotalPrice() {
+    double total = 0.0;
+    for (int i = 0; i < cartProducts.length; i++) {
+      if (i < selectedItems.length && selectedItems[i]) {
+        total += cartProducts[i].productPrice * cartProducts[i].quantity;
+      }
+    }
+    return total;
+  }
+
+  // Toggles the selection status of a cart item
+  void toggleSelection(int index) {
+    if (index < selectedItems.length) {
+      setState(() {
+        selectedItems[index] = !selectedItems[index];
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9F9F9),
+      appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 252, 251, 251),
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        title: const Text(
+          'Your Cart',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: cartProducts.isEmpty
+          ? const Center(
+              child: Text(
+                "Your cart is empty!",
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: cartProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = cartProducts[index];
+                      return CartItemCard(
+                        product: product,
+                        isSelected: selectedItems.length > index && selectedItems[index],
+                        onToggleSelected: () => toggleSelection(index),
+                        onRemove: () => removeProduct(index),
+                        onUpdateQuantity: (change) => updateQuantity(index, change),
+                      );
+                    },
+                  ),
+                ),
+                // Bottom section for total and checkout button
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(color: Colors.black12, blurRadius: 4),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "Total:",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            "Nrs.${getTotalPrice().toStringAsFixed(2)}",
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final selectedProducts = [
+                              for (int i = 0; i < cartProducts.length; i++)
+                                if (i < selectedItems.length && selectedItems[i])
+                                  cartProducts[i].toJson(), // Pass as JSON map
+                            ];
+
+                            if (selectedProducts.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "Please select at least one product.",
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const Checkout(),
+                                settings: RouteSettings(
+                                  arguments: selectedProducts,
+                                ),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: const Text(
+                            "Proceed to Checkout",
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}

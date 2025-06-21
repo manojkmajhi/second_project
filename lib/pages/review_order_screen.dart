@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
 
 class ReviewOrderScreen extends StatefulWidget {
   final List<Map<String, dynamic>> products;
@@ -17,6 +17,8 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
   final Map<int, TextEditingController> _controllers = {};
   final Map<int, List<String>> _mediaPaths = {};
   final ImagePicker _picker = ImagePicker();
+  final Set<int> _reviewedProducts =
+      {}; // Track which products have been reviewed
 
   @override
   void initState() {
@@ -25,11 +27,27 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
       final productId = product['id'] ?? product['product_id'];
       if (productId != null) {
         _controllers[productId] = TextEditingController();
+        // Check if this product already has a review
+        _checkExistingReview(productId);
       }
     }
   }
 
+  Future<void> _checkExistingReview(int productId) async {
+    final existingReviews = await DBHelper.instance.getReviewsForProduct(
+      productId,
+    );
+    if (existingReviews.isNotEmpty) {
+      setState(() {
+        _reviewedProducts.add(productId);
+        // Optionally, you could load the existing review data here
+      });
+    }
+  }
+
   Future<void> _pickMedia(int productId) async {
+    if (_reviewedProducts.contains(productId)) return;
+
     await showModalBottomSheet(
       context: context,
       builder:
@@ -89,7 +107,8 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
     try {
       for (var product in widget.products) {
         final productId = product['id'] ?? product['product_id'];
-        if (productId == null) continue;
+        if (productId == null || _reviewedProducts.contains(productId))
+          continue;
 
         final rating = _ratings[productId] ?? 0;
         final comment = _controllers[productId]?.text.trim() ?? '';
@@ -113,6 +132,9 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
               );
             }
           }
+          setState(() {
+            _reviewedProducts.add(productId);
+          });
           submitted = true;
         }
       }
@@ -127,7 +149,11 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please add at least one review.')),
+          const SnackBar(
+            content: Text(
+              'Please add at least one review for unreviewed products.',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -154,6 +180,7 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
     final imagePath = product['image_path'] ?? product['image'] ?? '';
     if (productId == null) return const SizedBox();
 
+    final isReviewed = _reviewedProducts.contains(productId);
     final mediaList = _mediaPaths[productId] ?? [];
 
     return Card(
@@ -190,108 +217,122 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
                     ),
                   ),
                 ),
+                if (isReviewed)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8.0),
+                    child: Icon(Icons.check_circle, color: Colors.green),
+                  ),
               ],
             ),
-            const SizedBox(height: 10),
-            const Text(
-              'Your Rating',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Row(
-              children: List.generate(5, (star) {
-                final rating = _ratings[productId] ?? 0;
-                return IconButton(
-                  icon: Icon(
-                    star < rating ? Icons.star : Icons.star_border,
-                    color: Colors.amber,
-                    size: 30,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _ratings[productId] = star + 1;
-                    });
-                  },
-                );
-              }),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _controllers[productId],
-              decoration: InputDecoration(
-                labelText: 'Write a review (optional)',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.photo_library),
-                  onPressed: () => _pickMedia(productId),
-                ),
+            if (!isReviewed) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'Your Rating',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 10),
-
-            if (mediaList.isNotEmpty)
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children:
-                    mediaList.map((path) {
-                      final isVideo =
-                          path.endsWith('.mp4') ||
-                          path.endsWith('.mov') ||
-                          path.endsWith('.avi');
-                      return Stack(
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              if (!isVideo) {
-                                showDialog(
-                                  context: context,
-                                  builder:
-                                      (_) =>
-                                          Dialog(child: Image.file(File(path))),
-                                );
-                              }
-                            },
-                            child:
-                                isVideo
-                                    ? Container(
-                                      width: 100,
-                                      height: 100,
-                                      color: Colors.black12,
-                                      child: const Center(
-                                        child: Icon(Icons.videocam, size: 40),
-                                      ),
-                                    )
-                                    : Image.file(
-                                      File(path),
-                                      width: 100,
-                                      height: 100,
-                                      fit: BoxFit.cover,
-                                    ),
-                          ),
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: GestureDetector(
+              Row(
+                children: List.generate(5, (star) {
+                  final rating = _ratings[productId] ?? 0;
+                  return IconButton(
+                    icon: Icon(
+                      star < rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 30,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _ratings[productId] = star + 1;
+                      });
+                    },
+                  );
+                }),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _controllers[productId],
+                decoration: InputDecoration(
+                  labelText: 'Write a review (optional)',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.photo_library),
+                    onPressed: () => _pickMedia(productId),
+                  ),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 10),
+              if (mediaList.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children:
+                      mediaList.map((path) {
+                        final isVideo =
+                            path.endsWith('.mp4') ||
+                            path.endsWith('.mov') ||
+                            path.endsWith('.avi');
+                        return Stack(
+                          children: [
+                            GestureDetector(
                               onTap: () {
-                                setState(() {
-                                  _mediaPaths[productId]?.remove(path);
-                                });
+                                if (!isVideo) {
+                                  showDialog(
+                                    context: context,
+                                    builder:
+                                        (_) => Dialog(
+                                          child: Image.file(File(path)),
+                                        ),
+                                  );
+                                }
                               },
-                              child: const CircleAvatar(
-                                radius: 12,
-                                backgroundColor: Colors.red,
-                                child: Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                  size: 16,
+                              child:
+                                  isVideo
+                                      ? Container(
+                                        width: 100,
+                                        height: 100,
+                                        color: Colors.black12,
+                                        child: const Center(
+                                          child: Icon(Icons.videocam, size: 40),
+                                        ),
+                                      )
+                                      : Image.file(
+                                        File(path),
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.cover,
+                                      ),
+                            ),
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _mediaPaths[productId]?.remove(path);
+                                  });
+                                },
+                                child: const CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor: Colors.red,
+                                  child: Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
+                          ],
+                        );
+                      }).toList(),
+                ),
+            ] else
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.0),
+                child: Text(
+                  'You have already reviewed this product',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
           ],
         ),
@@ -311,7 +352,7 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
             onPressed: () => Navigator.pop(context),
           ),
         ],
-      ), 
+      ),
       body:
           widget.products.isEmpty
               ? const Center(child: Text('No products to review.'))
@@ -327,27 +368,7 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
                   ),
                   Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: _submitReviews,
-                        child: const Text(
-                          'SUBMIT REVIEWS',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
+                    child: SizedBox(width: double.infinity),
                   ),
                 ],
               ),

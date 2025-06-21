@@ -6,7 +6,7 @@ import 'package:second_project/pages/category_products.dart';
 import 'package:second_project/pages/product_details/screen/product_detail.dart';
 import 'package:second_project/pages/search.dart';
 import 'package:second_project/widget/support_widget.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -42,15 +42,15 @@ class _HomeState extends State<Home> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// Header with real-time username from Firestore
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(FirebaseAuth.instance.currentUser?.uid)
-                      .snapshots(),
+                  stream:
+                      FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(FirebaseAuth.instance.currentUser?.uid)
+                          .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return Column(
@@ -109,7 +109,7 @@ class _HomeState extends State<Home> {
 
             const SizedBox(height: 20.0),
 
-            /// Search
+            // Search Bar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12.0),
               decoration: BoxDecoration(
@@ -129,12 +129,15 @@ class _HomeState extends State<Home> {
                         border: InputBorder.none,
                       ),
                       onSubmitted: (query) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SearchPage(initialQuery: query),
-                          ),
-                        );
+                        if (query.trim().isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => SearchPage(initialQuery: query),
+                            ),
+                          );
+                        }
                       },
                     ),
                   ),
@@ -144,8 +147,10 @@ class _HomeState extends State<Home> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                SearchPage(initialQuery: searchController.text),
+                            builder:
+                                (context) => SearchPage(
+                                  initialQuery: searchController.text,
+                                ),
                           ),
                         );
                       }
@@ -167,7 +172,7 @@ class _HomeState extends State<Home> {
 
             const SizedBox(height: 20.0),
 
-            /// Categories
+            // Categories Section
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -188,7 +193,7 @@ class _HomeState extends State<Home> {
 
             const SizedBox(height: 20.0),
 
-            /// Products Header
+            // Products Section
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -196,31 +201,44 @@ class _HomeState extends State<Home> {
               ],
             ),
 
-            /// Product List
+            // Product List
             Expanded(
-              child: products.isEmpty
-                  ? const Center(child: Text("No products available"))
-                  : ListView.builder(
-                      itemCount: (products.length / 2).ceil(),
-                      itemBuilder: (context, rowIndex) {
-                        final index1 = rowIndex * 2;
-                        final index2 = index1 + 1;
-                        final product1 = products[index1];
-                        final product2 =
-                            index2 < products.length ? products[index2] : null;
+              child:
+                  products.isEmpty
+                      ? const Center(
+                        child: Text(
+                          "No products available",
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      )
+                      : ListView.builder(
+                        itemCount: (products.length / 2).ceil(),
+                        itemBuilder: (context, rowIndex) {
+                          final index1 = rowIndex * 2;
+                          final index2 = index1 + 1;
+                          final product1 = products[index1];
+                          final product2 =
+                              index2 < products.length
+                                  ? products[index2]
+                                  : null;
 
-                        return Row(
-                          children: [
-                            Expanded(child: productCard(context, product1)),
-                            const SizedBox(width: 16),
-                            if (product2 != null)
-                              Expanded(child: productCard(context, product2))
-                            else
-                              const Expanded(child: SizedBox()),
-                          ],
-                        );
-                      },
-                    ),
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: Row(
+                              children: [
+                                Expanded(child: productCard(context, product1)),
+                                const SizedBox(width: 16),
+                                if (product2 != null)
+                                  Expanded(
+                                    child: productCard(context, product2),
+                                  )
+                                else
+                                  const Expanded(child: SizedBox()),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
             ),
           ],
         ),
@@ -229,58 +247,108 @@ class _HomeState extends State<Home> {
   }
 
   Widget productCard(BuildContext context, Map<String, dynamic> product) {
+    final isOutOfStock = (product['product_quantity'] ?? 0) <= 0;
+
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => ProductDetail(product: product)),
-        );
-      },
+      onTap:
+          isOutOfStock
+              ? null
+              : () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProductDetail(product: product),
+                  ),
+                );
+              },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12.0),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12.0),
+
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            if (product['image_path'] != null &&
-                File(product['image_path']).existsSync())
-              Image.file(
-                File(product['image_path']),
-                height: 100,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              )
-            else
-              Container(
-                height: 100,
-                color: Colors.grey[300],
-                child: const Center(child: Icon(Icons.image_not_supported)),
-              ),
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                product['product_name'] ?? '',
-                style: AppWidget.semiboldTextFieldStyle(),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (product['image_path'] != null &&
+                      File(product['image_path']).existsSync())
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Image.file(
+                        File(product['image_path']),
+                        height: 95,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.image_not_supported, size: 40),
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: Text(
+                      product['product_name'] ?? 'Unnamed Product',
+                      style: AppWidget.semiboldTextFieldStyle(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Price: Nrs.${product['product_price']}",
+                    style: const TextStyle(
+                      color: Color.fromARGB(255, 213, 91, 91),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Category: ${product['category'] ?? 'Unknown'}",
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                  if (isOutOfStock) const SizedBox(height: 8),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              "Price: Nrs.${product['product_price']}",
-              style: const TextStyle(
-                color: Color.fromARGB(135, 213, 91, 91),
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+            if (isOutOfStock)
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12.0),
+                  child: Container(
+                    color: Colors.black.withOpacity(0.5),
+                    child: const Center(
+                      child: Text(
+                        "OUT OF STOCK",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            Text(
-              "Category: ${product['category'] ?? 'Unknown'}",
-              style: const TextStyle(color: Colors.black54),
-            ),
           ],
         ),
       ),
@@ -300,9 +368,10 @@ class CategoryButton extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => CategoryProducts(
-              category: categoryName == "All" ? null : categoryName,
-            ),
+            builder:
+                (context) => CategoryProducts(
+                  category: categoryName == "All" ? null : categoryName,
+                ),
           ),
         );
       },
@@ -312,6 +381,13 @@ class CategoryButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(12.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Center(
           child: Text(

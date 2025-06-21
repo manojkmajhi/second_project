@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
 import 'package:second_project/widget/support_widget.dart';
 
 class UpdateProduct extends StatefulWidget {
@@ -24,6 +24,7 @@ class _UpdateProductState extends State<UpdateProduct> {
   late TextEditingController _detailsController;
 
   String? selectedCategory;
+  String? selectedSubCategory;
   bool isLoading = false;
 
   final List<String> categoryItem = [
@@ -32,6 +33,12 @@ class _UpdateProductState extends State<UpdateProduct> {
     "Electrical",
     "Agricultural",
   ];
+
+  final Map<String, List<String>> subCategories = {
+    "Agricultural": ["Hand Tools", "Irrigation Tools", "Cutting Tools"],
+    "Electrical": ["Drills", "Multimeters", "Wiring Tools"],
+    "Daily Use": ["Hammer", "Screwdriver", "Wrenches"],
+  };
 
   @override
   void initState() {
@@ -47,6 +54,7 @@ class _UpdateProductState extends State<UpdateProduct> {
     );
     _detailsController = TextEditingController(text: widget.product['details']);
     selectedCategory = widget.product['category'];
+    selectedSubCategory = widget.product['sub_category'];
     selectedImage = File(widget.product['image_path']);
   }
 
@@ -95,9 +103,9 @@ class _UpdateProductState extends State<UpdateProduct> {
       return;
     }
 
-    if (selectedCategory == null) {
+    if (selectedCategory == null || selectedCategory == "All") {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a category.")),
+        const SnackBar(content: Text("Please select a valid category.")),
       );
       return;
     }
@@ -112,6 +120,7 @@ class _UpdateProductState extends State<UpdateProduct> {
         'product_quantity': int.parse(_quantityController.text),
         'details': _detailsController.text.trim(),
         'category': selectedCategory!,
+        'sub_category': selectedSubCategory,
         'image_path': selectedImage!.path,
       };
 
@@ -120,7 +129,13 @@ class _UpdateProductState extends State<UpdateProduct> {
       setState(() => isLoading = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Product updated successfully!")),
+        const SnackBar(
+          backgroundColor: Colors.green,
+          content: Text(
+            "Product updated successfully!",
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
       );
       Navigator.pop(context, true);
     } catch (e) {
@@ -214,6 +229,10 @@ class _UpdateProductState extends State<UpdateProduct> {
                         ),
                         const SizedBox(height: 10),
                         _buildCategoryDropdown(),
+                        const SizedBox(height: 10),
+                        if (selectedCategory != null &&
+                            selectedCategory != "All")
+                          _buildSubCategoryDropdown(),
                         const SizedBox(height: 10),
                         _buildDescriptionField(),
                         const SizedBox(height: 20),
@@ -324,7 +343,68 @@ class _UpdateProductState extends State<UpdateProduct> {
                   ),
                 );
               }).toList(),
-          onChanged: (val) => setState(() => selectedCategory = val),
+          onChanged: (val) {
+            setState(() {
+              selectedCategory = val;
+              selectedSubCategory = null;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubCategoryDropdown() {
+    final subCategoryItems = subCategories[selectedCategory] ?? [];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade400, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selectedSubCategory,
+          isExpanded: true,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Colors.black,
+          ),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.black87,
+          ),
+          dropdownColor: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          hint: const Text(
+            "Select Sub-Category",
+            style: TextStyle(fontSize: 16, color: Colors.black54),
+          ),
+          items:
+              subCategoryItems.map((item) {
+                return DropdownMenuItem<String>(
+                  value: item,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(item),
+                  ),
+                );
+              }).toList(),
+          onChanged: (val) {
+            setState(() {
+              selectedSubCategory = val;
+            });
+          },
         ),
       ),
     );

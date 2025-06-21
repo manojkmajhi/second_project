@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:khalti_flutter/khalti_flutter.dart';
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server/gmail.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
 import 'package:second_project/database/shared_preferences.dart';
 import 'package:second_project/pages/bottomnav.dart';
 import 'package:second_project/pages/select_payment_method_page.dart';
@@ -43,26 +43,53 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
     super.dispose();
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      _showPaymentDialog();
-    }
+  Future<void> _reduceProductQuantities(
+    List<Map<String, dynamic>> orderedProducts,
+  ) async {
+    final db = await DBHelper.instance.getDB();
+    await db.transaction((txn) async {
+      for (var product in orderedProducts) {
+        final productId = product['product_id'] ?? product['id'];
+        final orderedQty = product['quantity'] ?? 1;
+
+        // Get current quantity
+        final result = await txn.query(
+          DBHelper.productTableName,
+          where: 'id = ?',
+          whereArgs: [productId],
+        );
+
+        if (result.isNotEmpty) {
+          final currentQty = result.first['product_quantity'] as int;
+          final newQty = currentQty - orderedQty;
+
+          // Update with new quantity
+          await txn.update(
+            DBHelper.productTableName,
+            {'product_quantity': newQty},
+            where: 'id = ?',
+            whereArgs: [productId],
+          );
+        }
+      }
+    });
   }
 
   void _showLoaderDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        backgroundColor: Colors.white,
-        content: Row(
-          children: [
-            CircularProgressIndicator(color: Colors.black),
-            SizedBox(width: 16),
-            Text("Processing...", style: TextStyle(color: Colors.black)),
-          ],
-        ),
-      ),
+      builder:
+          (_) => const AlertDialog(
+            backgroundColor: Colors.white,
+            content: Row(
+              children: [
+                CircularProgressIndicator(color: Colors.black),
+                SizedBox(width: 16),
+                Text("Processing...", style: TextStyle(color: Colors.black)),
+              ],
+            ),
+          ),
     );
   }
 
@@ -70,45 +97,47 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text(
-          'Order Confirmed',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.black),
-        ),
-        content: const Text(
-          'Your order has been placed successfully and confirmation email sent!',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.black),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const BottomNav(initialIndex: 0),
-                ),
-                (route) => false,
-              );
-            },
-            child: const Text(
-              'Go To Home',
-              style: TextStyle(color: Colors.green),
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
+            title: const Text(
+              'Order Confirmed',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black),
+            ),
+            content: const Text(
+              'Your order has been placed successfully and confirmation email sent!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const BottomNav(initialIndex: 0),
+                    ),
+                    (route) => false,
+                  );
+                },
+                child: const Text(
+                  'Go To Home',
+                  style: TextStyle(color: Colors.green),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
   double getTotalPrice() {
     return products.fold(0, (sum, product) {
-      double price = double.tryParse(product['product_price'].toString()) ?? 0.0;
+      double price =
+          double.tryParse(product['product_price'].toString()) ?? 0.0;
       int qty = product['quantity'] ?? 1;
       return sum + (price * qty);
     });
@@ -131,63 +160,18 @@ class _AddAddressInfoState extends State<AddAddressInfo> {
     return details;
   }
 
-  Future<void> _processOrder() async {
-    _showLoaderDialog();
-
-    try {
-      final userIdStr = await SharedPreferenceHelper().getUserId();
-      if (userIdStr == null) throw Exception("User not logged in");
-      final userId = int.parse(userIdStr);
-
-      final totalPrice = getTotalPrice();
-      final productsJson = jsonEncode(products);
-      
-      // Insert order into database
-      await DBHelper.instance.insertOrder(
-        userId: userId,
-        totalPrice: totalPrice,
-        productsJson: productsJson,
-        deliveryAddress: addressController.text.trim(),
-        paymentMethod: selectedPaymentMethod ?? 'Unknown',
-        customerName: nameController.text.trim(),
-        customerEmail: emailController.text.trim(),
-        customerPhone: phoneController.text.trim(),
-      );
-
-      // Clear cart after successful order
-      await DBHelper.instance.clearCart();
-
-      // Send confirmation email
-      await _sendEmail();
-
-      if (mounted) {
-        Navigator.pop(context); // Close loader
-        _showConfirmationDialog();
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loader
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Order failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   Future<void> _sendEmail() async {
     const username = 'manojmajhi77777@gmail.com';
     const password = 'lmof ckza lblt caft';
 
     final smtpServer = gmail(username, password);
 
-    final message = Message()
-      ..from = Address(username, 'Your Store')
-      ..recipients.add(emailController.text.trim())
-      ..subject = 'Order Confirmation'
-      ..text = '''
+    final message =
+        Message()
+          ..from = Address(username, 'Your Store')
+          ..recipients.add(emailController.text.trim())
+          ..subject = 'Order Confirmation'
+          ..text = '''
 Hello ${nameController.text},
 
 Thank you for your order!
@@ -223,67 +207,118 @@ Your Toolkit Nepal
     }
   }
 
+  Future<void> _processOrder() async {
+    _showLoaderDialog();
+
+    try {
+      final userIdStr = await SharedPreferenceHelper().getUserId();
+      if (userIdStr == null) throw Exception("User not logged in");
+      final userId = int.parse(userIdStr);
+
+      final totalPrice = getTotalPrice();
+      final productsJson = jsonEncode(products);
+
+      // Insert order into database
+      await DBHelper.instance.insertOrder(
+        userId: userId,
+        totalPrice: totalPrice,
+        productsJson: productsJson,
+        deliveryAddress: addressController.text.trim(),
+        paymentMethod: selectedPaymentMethod ?? 'Unknown',
+        customerName: nameController.text.trim(),
+        customerEmail: emailController.text.trim(),
+        customerPhone: phoneController.text.trim(),
+      );
+
+      // Reduce product quantities
+      await _reduceProductQuantities(products);
+
+      // Clear cart after successful order
+      await DBHelper.instance.clearCart();
+
+      // Send confirmation email
+      await _sendEmail();
+
+      if (mounted) {
+        Navigator.pop(context); // Close loader
+        _showConfirmationDialog();
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loader
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Order failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showPaymentDialog() {
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Payment Method',
-            style: TextStyle(color: Colors.black),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _paymentOptionTile(setState, 'Cash on Delivery'),
-              _paymentOptionTile(setState, 'Khalti'),
-              if (selectedPaymentMethod == null)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Please select a payment method',
-                    style: TextStyle(color: Colors.red, fontSize: 13),
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => AlertDialog(
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
+                  title: const Text(
+                    'Payment Method',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _paymentOptionTile(setState, 'Cash on Delivery'),
+                      _paymentOptionTile(setState, 'Khalti'),
+                      if (selectedPaymentMethod == null)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Please select a payment method',
+                            style: TextStyle(color: Colors.red, fontSize: 13),
+                          ),
+                        ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () {
+                        if (selectedPaymentMethod != null) {
+                          Navigator.pop(context);
+                          if (selectedPaymentMethod == 'Khalti') {
+                            _startKhaltiPayment();
+                          } else {
+                            _processOrder();
+                          }
+                        } else {
+                          setState(() {});
+                        }
+                      },
+                      child: const Text('Proceed'),
+                    ),
+                  ],
                 ),
-            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Colors.black),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: () {
-                if (selectedPaymentMethod != null) {
-                  Navigator.pop(context);
-                  if (selectedPaymentMethod == 'Khalti') {
-                    _startKhaltiPayment();
-                  } else {
-                    _processOrder();
-                  }
-                } else {
-                  setState(() {});
-                }
-              },
-              child: const Text('Proceed'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -336,7 +371,7 @@ Your Toolkit Nepal
   }
 
   @override
-   Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 235, 235, 235),
       appBar: AppBar(
@@ -371,7 +406,8 @@ Your Toolkit Nepal
                 Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
-                  if (value == null || value.isEmpty) return 'Email is required';
+                  if (value == null || value.isEmpty)
+                    return 'Email is required';
                   if (!RegExp(
                     r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
                   ).hasMatch(value)) {
@@ -420,9 +456,10 @@ Your Toolkit Nepal
                       final selectedMethod = await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => SelectPaymentMethodPage(
-                            selectedMethod: selectedPaymentMethod,
-                          ),
+                          builder:
+                              (_) => SelectPaymentMethodPage(
+                                selectedMethod: selectedPaymentMethod,
+                              ),
                         ),
                       );
 
@@ -433,7 +470,6 @@ Your Toolkit Nepal
 
                         if (selectedMethod == 'Cash on Delivery') {
                           _processOrder();
-                          
                         } else if (selectedMethod == 'Khalti') {
                           _startKhaltiPayment();
                         }

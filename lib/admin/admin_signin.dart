@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart ';
 import 'package:second_project/admin/admin_home.dart';
-import 'package:second_project/pages/signin.dart';
+import 'package:second_project/pages/authentication/signin/signin.dart';
 import 'package:second_project/widget/support_widget.dart';
 
 class AdminSignin extends StatefulWidget {

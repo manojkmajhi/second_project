@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:second_project/pages/product_details/widgets/recommendation_section.dart';
 import 'package:second_project/pages/product_details/widgets/review_section.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:second_project/data/local/db_helper.dart';
+import 'package:second_project/database/data/local/db_helper.dart';
 import 'package:second_project/widget/support_widget.dart';
 import 'package:second_project/pages/checkout.dart';
-import 'package:second_project/pages/cart.dart';
+import 'package:second_project/pages/cart/cart.dart';
 
 class ProductDetail extends StatefulWidget {
   final Map<String, dynamic> product;

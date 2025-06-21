@@ -1,9 +1,11 @@
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:flutter/material.dart';
-import 'package:second_project/pages/cart.dart';
-import 'package:second_project/pages/home.dart';
-import 'package:second_project/pages/order.dart';
-import 'package:second_project/pages/profile.dart';
+import 'package:second_project/pages/cart/cart.dart';
+import 'package:second_project/pages/home/home.dart';
+import 'package:second_project/pages/order/order.dart';
+import 'package:second_project/pages/profile/profile.dart';
+
+
 
 class BottomNav extends StatefulWidget {
   final int initialIndex;
@@ -21,14 +23,14 @@ class _BottomNavState extends State<BottomNav> {
   late Profile profile;
   late int currentTabIndex;
   int cartKey = 0;
-  int orderKey = 0; // Add key for Order page
+  int orderKey = 0; 
 
   @override
   void initState() {
     super.initState();
     currentTabIndex = widget.initialIndex;
     homePage = const Home();
-    orderPage = Order(key: ValueKey(orderKey)); // Initialize with key
+    orderPage = Order(key: ValueKey(orderKey)); 
     cart = CartPage(key: ValueKey(cartKey));
     profile = const Profile();
     pages = [homePage, orderPage, cart, profile];
