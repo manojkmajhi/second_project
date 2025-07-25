@@ -36,7 +36,6 @@ class ReviewSection extends StatelessWidget {
 
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 6),
-
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -84,23 +83,27 @@ class ReviewSection extends StatelessWidget {
                         const SizedBox(height: 6),
 
                         // Comment
-                        Text(comment),
+                        if (comment.isNotEmpty) Text(comment),
 
                         const SizedBox(height: 8),
 
-                        // Optional media
-                        if (mediaPath != null)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              File(mediaPath),
-                              height: 150,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder:
-                                  (context, error, stackTrace) =>
-                                      const Text("Failed to load image"),
-                            ),
+                        if (mediaPath != null && mediaPath.isNotEmpty)
+                          FutureBuilder<bool>(
+                            future: File(mediaPath).exists(),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasData && snapshot.data == true) {
+                                return ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.file(
+                                    File(mediaPath),
+                                    height: 150,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                );
+                              }
+                              return const SizedBox();
+                            },
                           ),
                       ],
                     ),

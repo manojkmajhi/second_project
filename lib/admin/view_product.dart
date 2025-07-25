@@ -98,13 +98,18 @@ class _ViewProductState extends State<ViewProduct> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 235, 235, 235),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
         title: const Text(
-          'View Products',
-          style: TextStyle(color: Colors.black),
+          'Products',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         iconTheme: const IconThemeData(color: Colors.black),
-        elevation: 1,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

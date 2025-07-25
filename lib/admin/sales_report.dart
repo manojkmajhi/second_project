@@ -14,7 +14,8 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
   List<Map<String, dynamic>> _orders = [];
   List<Map<String, dynamic>> _filteredOrders = [];
   double _totalSales = 0;
-  String _selectedFilter = 'Today';
+  String _selectedFilter = 'Total';
+  String? _selectedPaymentMethod;
   bool _isLoading = true;
 
   final List<String> _filterOptions = [
@@ -24,6 +25,8 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     'This Year',
     'Total',
   ];
+
+  final List<String> _paymentMethods = ['All', 'Cash on Delivery', 'Khalti'];
 
   @override
   void initState() {
@@ -38,13 +41,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       _orders = await _dbHelper.getAllOrders();
       debugPrint('Total orders fetched: ${_orders.length}');
 
-      // Debug: Print all orders with their status
-      for (var order in _orders) {
-        debugPrint(
-          'Order ID: ${order['id']}, Status: ${order['status']}, Date: ${order['order_date']}',
-        );
-      }
-
       // Filter only completed orders (case insensitive)
       _orders =
           _orders.where((order) {
@@ -53,7 +49,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
           }).toList();
 
       debugPrint('Completed orders: ${_orders.length}');
-      _applyFilter(_selectedFilter);
+      _applyFilters();
     } catch (e) {
       debugPrint('Error fetching sales data: $e');
     } finally {
@@ -61,83 +57,56 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     }
   }
 
-  void _applyFilter(String filter) {
+  void _applyFilters() {
     setState(() {
-      _selectedFilter = filter;
       final now = DateTime.now();
-      _filteredOrders = [];
+      _filteredOrders =
+          _orders.where((order) {
+            // Apply time filter
+            bool timeFilter = false;
+            try {
+              final orderDate = DateTime.parse(order['order_date'].toString());
 
-      switch (filter) {
-        case 'Today':
-          _filteredOrders =
-              _orders.where((order) {
-                try {
-                  final orderDate = DateTime.parse(
-                    order['order_date'].toString(),
-                  );
-                  return orderDate.year == now.year &&
+              switch (_selectedFilter) {
+                case 'Today':
+                  timeFilter =
+                      orderDate.year == now.year &&
                       orderDate.month == now.month &&
                       orderDate.day == now.day;
-                } catch (e) {
-                  debugPrint('Error parsing date: ${order['order_date']}, $e');
-                  return false;
-                }
-              }).toList();
-          break;
-
-        case 'Yesterday':
-          final yesterday = now.subtract(const Duration(days: 1));
-          _filteredOrders =
-              _orders.where((order) {
-                try {
-                  final orderDate = DateTime.parse(
-                    order['order_date'].toString(),
-                  );
-                  return orderDate.year == yesterday.year &&
+                  break;
+                case 'Yesterday':
+                  final yesterday = now.subtract(const Duration(days: 1));
+                  timeFilter =
+                      orderDate.year == yesterday.year &&
                       orderDate.month == yesterday.month &&
                       orderDate.day == yesterday.day;
-                } catch (e) {
-                  debugPrint('Error parsing date: ${order['order_date']}, $e');
-                  return false;
-                }
-              }).toList();
-          break;
-
-        case 'This Month':
-          _filteredOrders =
-              _orders.where((order) {
-                try {
-                  final orderDate = DateTime.parse(
-                    order['order_date'].toString(),
-                  );
-                  return orderDate.year == now.year &&
+                  break;
+                case 'This Month':
+                  timeFilter =
+                      orderDate.year == now.year &&
                       orderDate.month == now.month;
-                } catch (e) {
-                  debugPrint('Error parsing date: ${order['order_date']}, $e');
-                  return false;
-                }
-              }).toList();
-          break;
+                  break;
+                case 'This Year':
+                  timeFilter = orderDate.year == now.year;
+                  break;
+                case 'Total':
+                  timeFilter = true;
+                  break;
+              }
+            } catch (e) {
+              debugPrint('Error parsing date: ${order['order_date']}, $e');
+              return false;
+            }
 
-        case 'This Year':
-          _filteredOrders =
-              _orders.where((order) {
-                try {
-                  final orderDate = DateTime.parse(
-                    order['order_date'].toString(),
-                  );
-                  return orderDate.year == now.year;
-                } catch (e) {
-                  debugPrint('Error parsing date: ${order['order_date']}, $e');
-                  return false;
-                }
-              }).toList();
-          break;
+            // Apply payment method filter if selected
+            bool paymentFilter = true;
+            if (_selectedPaymentMethod != null &&
+                _selectedPaymentMethod != 'All') {
+              paymentFilter = order['payment_method'] == _selectedPaymentMethod;
+            }
 
-        case 'Total':
-          _filteredOrders = List.from(_orders);
-          break;
-      }
+            return timeFilter && paymentFilter;
+          }).toList();
 
       // Sort orders by date (newest first)
       _filteredOrders.sort((a, b) {
@@ -183,7 +152,33 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: _buildFilterDropdown(),
+            child: Column(
+              children: [
+                _buildFilterDropdown(
+                  label: 'Filter period',
+                  value: _selectedFilter,
+                  items: _filterOptions,
+                  onChanged: (value) {
+                    setState(() => _selectedFilter = value!);
+                    _applyFilters();
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildFilterDropdown(
+                  label: 'Payment method',
+                  value: _selectedPaymentMethod ?? 'All',
+                  items: _paymentMethods,
+                  onChanged: (value) {
+                    setState(
+                      () =>
+                          _selectedPaymentMethod =
+                              value == 'All' ? null : value,
+                    );
+                    _applyFilters();
+                  },
+                ),
+              ],
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -222,35 +217,39 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     );
   }
 
-  Widget _buildFilterDropdown() {
+  Widget _buildFilterDropdown({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade300),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: DropdownButtonFormField<String>(
-        value: _selectedFilter,
+        value: value,
         isExpanded: true,
         icon: const Icon(Icons.arrow_drop_down, color: Colors.black),
         decoration: InputDecoration(
-          labelText: 'Filter period',
+          labelText: label,
           labelStyle: const TextStyle(color: Colors.black54),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
         ),
         dropdownColor: Colors.white,
         items:
-            _filterOptions.map((String value) {
+            items.map((String value) {
               return DropdownMenuItem<String>(
                 value: value,
                 child: Text(value, style: const TextStyle(color: Colors.black)),
               );
             }).toList(),
-        onChanged: (value) => _applyFilter(value!),
+        onChanged: onChanged,
       ),
     );
   }
@@ -266,12 +265,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
         ),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '$_selectedFilter Summary',
+                '$_selectedFilter Summary${_selectedPaymentMethod != null ? ' (${_selectedPaymentMethod})' : ''}',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.grey[700],
@@ -290,7 +288,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                   _buildSummaryItem(
                     'Total Sales',
                     'Nrs.${_totalSales.toStringAsFixed(2)}',
-                    Icons.attach_money,
+                    Icons.money,
                     Colors.green,
                   ),
                 ],
@@ -356,7 +354,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               ).textTheme.titleMedium?.copyWith(color: Colors.grey),
             ),
             Text(
-              'for the selected period',
+              'for the selected filters',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
@@ -420,6 +418,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                     'Customer: ${order['customer_name']}',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
+                Text(
+                  'Payment: ${order['payment_method'] ?? 'N/A'}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
               ],
             ),
             trailing: Column(

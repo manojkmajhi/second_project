@@ -17,8 +17,7 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
   final Map<int, TextEditingController> _controllers = {};
   final Map<int, List<String>> _mediaPaths = {};
   final ImagePicker _picker = ImagePicker();
-  final Set<int> _reviewedProducts =
-      {}; // Track which products have been reviewed
+  final Set<int> _reviewedProducts = {};
 
   @override
   void initState() {
@@ -27,10 +26,33 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
       final productId = product['id'] ?? product['product_id'];
       if (productId != null) {
         _controllers[productId] = TextEditingController();
-        // Check if this product already has a review
         _checkExistingReview(productId);
       }
     }
+  }
+
+  bool get _allProductsReviewed {
+    for (var product in widget.products) {
+      final productId = product['id'] ?? product['product_id'];
+      if (productId != null && !_reviewedProducts.contains(productId)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool get _hasReviewContent {
+    for (var product in widget.products) {
+      final productId = product['id'] ?? product['product_id'];
+      if (productId != null && !_reviewedProducts.contains(productId)) {
+        if ((_ratings[productId] ?? 0) > 0 ||
+            (_controllers[productId]?.text.isNotEmpty ?? false) ||
+            (_mediaPaths[productId]?.isNotEmpty ?? false)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   Future<void> _checkExistingReview(int productId) async {
@@ -40,7 +62,6 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
     if (existingReviews.isNotEmpty) {
       setState(() {
         _reviewedProducts.add(productId);
-        // Optionally, you could load the existing review data here
       });
     }
   }
@@ -344,6 +365,7 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 236, 236, 236),
         title: const Text('Review Products'),
         centerTitle: true,
         actions: [
@@ -353,6 +375,7 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
           ),
         ],
       ),
+      backgroundColor: const Color.fromARGB(255, 252, 251, 251),
       body:
           widget.products.isEmpty
               ? const Center(child: Text('No products to review.'))
@@ -368,7 +391,33 @@ class _ReviewOrderScreenState extends State<ReviewOrderScreen> {
                   ),
                   Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: SizedBox(width: double.infinity),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          backgroundColor:
+                              _allProductsReviewed
+                                  ? Colors.grey
+                                  : Colors.black, // Changed to black background
+                          foregroundColor:
+                              Colors.white, // Added white text color
+                        ),
+                        onPressed: _allProductsReviewed ? null : _submitReviews,
+                        child: Text(
+                          _allProductsReviewed
+                              ? 'All Products Reviewed'
+                              : 'Submit Reviews',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            color: Colors.white, // Ensures text is white
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

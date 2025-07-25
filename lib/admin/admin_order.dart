@@ -228,17 +228,18 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 235, 235, 235),
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 252, 251, 251),
-        automaticallyImplyLeading: false,
+        backgroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
         title: const Text(
-          'All Orders',
+          'Orders',
           style: TextStyle(
             color: Colors.black,
-            fontSize: 30,
+            fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
         ),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: SafeArea(
         child: Column(
